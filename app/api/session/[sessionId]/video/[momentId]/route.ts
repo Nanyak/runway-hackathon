@@ -16,6 +16,8 @@ export async function GET(
   const stat = fs.statSync(filePath);
   const fileSize = stat.size;
   const rangeHeader = req.headers.get('range');
+  const asDownload = req.nextUrl.searchParams.get('download') === '1';
+  const attachmentName = `moment_${momentId.slice(0, 8)}.mp4`;
 
   if (rangeHeader) {
     const parts = rangeHeader.replace(/bytes=/, '').split('-');
@@ -24,23 +26,31 @@ export async function GET(
     const chunkSize = end - start + 1;
 
     const stream = fs.createReadStream(filePath, { start, end });
+    const headers: Record<string, string> = {
+      'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': String(chunkSize),
+      'Content-Type': 'video/mp4',
+    };
+    if (asDownload) {
+      headers['Content-Disposition'] = `attachment; filename="${attachmentName}"`;
+    }
     return new Response(stream as unknown as ReadableStream, {
       status: 206,
-      headers: {
-        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-        'Accept-Ranges': 'bytes',
-        'Content-Length': String(chunkSize),
-        'Content-Type': 'video/mp4',
-      },
+      headers,
     });
   }
 
   const stream = fs.createReadStream(filePath);
+  const headers: Record<string, string> = {
+    'Content-Type': 'video/mp4',
+    'Content-Length': String(fileSize),
+    'Accept-Ranges': 'bytes',
+  };
+  if (asDownload) {
+    headers['Content-Disposition'] = `attachment; filename="${attachmentName}"`;
+  }
   return new Response(stream as unknown as ReadableStream, {
-    headers: {
-      'Content-Type': 'video/mp4',
-      'Content-Length': String(fileSize),
-      'Accept-Ranges': 'bytes',
-    },
+    headers,
   });
 }

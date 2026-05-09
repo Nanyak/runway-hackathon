@@ -8,6 +8,7 @@ import MomentApproval from '@/components/session/MomentApproval';
 import StoryboardReview from '@/components/session/StoryboardReview';
 import VideoWorkspace from '@/components/session/VideoWorkspace';
 import ThinkingPanel from '@/components/session/ThinkingPanel';
+import SessionActions from '@/components/session/SessionActions';
 
 // ── Step resolution ────────────────────────────────────────────────────────────
 
@@ -36,24 +37,31 @@ export default function SessionPage() {
   const [streamingThought, setStreamingThought] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** Set when API includes `listMeta` — user owns this session in SQLite. */
+  const [listMeta, setListMeta] = useState<{ displayName: string | null } | null | undefined>(undefined);
 
   const refetchSession = useCallback(() => {
     fetch(`/api/session/${sessionId}`)
-      .then((res) => res.json() as Promise<{ session: Session }>)
-      .then(({ session: s }) => setSession(s))
+      .then((res) => res.json() as Promise<{ session: Session; listMeta?: { displayName: string | null } }>)
+      .then((body) => {
+        setSession(body.session);
+        setListMeta('listMeta' in body && body.listMeta !== undefined ? body.listMeta : null);
+      })
       .catch(() => undefined);
   }, [sessionId]);
 
   // Initial load
   useEffect(() => {
+    setListMeta(undefined);
     fetch(`/api/session/${sessionId}`)
       .then((res) => {
         if (!res.ok) throw new Error(`Session not found (${res.status})`);
-        return res.json() as Promise<{ session: Session }>;
+        return res.json() as Promise<{ session: Session; listMeta?: { displayName: string | null } }>;
       })
-      .then(({ session: s }) => {
-        setSession(s);
-        setEvents(s.events);
+      .then((body) => {
+        setSession(body.session);
+        setEvents(body.session.events);
+        setListMeta('listMeta' in body && body.listMeta !== undefined ? body.listMeta : null);
         setLoading(false);
       })
       .catch((err: unknown) => {
@@ -133,6 +141,10 @@ export default function SessionPage() {
   const hasAnyStoryboardFrame = events.some((e) => e.type === 'storyboard_frame_ready');
   const currentStep = resolveStep(session.status, hasAnyStoryboardFrame);
 
+  const sessionFallbackLabel = session.config.showName
+    ? `${session.config.showName}${session.config.speakerName ? ` · ${session.config.speakerName}` : ''}`
+    : session.config.speakerName || 'Podcast session';
+
   // Show ThinkingPanel on Step 1 always, and Step 3 whenever there is thinking content
   const showThinking = currentStep === 1 || currentStep === 3;
   // ThinkingPanel collapses itself once storyboard frames start arriving
@@ -156,7 +168,15 @@ export default function SessionPage() {
           {/* Step indicator */}
           <StepIndicator current={currentStep} status={session.status} />
 
-          <div className="ml-auto flex-shrink-0">
+          <div className="ml-auto flex-shrink-0 flex items-center gap-2">
+            {listMeta != null && (
+              <SessionActions
+                sessionId={sessionId}
+                fallbackLabel={sessionFallbackLabel}
+                displayName={listMeta.displayName}
+                onDisplayNameChange={(name) => setListMeta({ displayName: name })}
+              />
+            )}
             <StatusBadge status={session.status} />
           </div>
         </div>

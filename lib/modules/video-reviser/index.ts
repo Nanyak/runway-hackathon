@@ -21,7 +21,6 @@ import {
   uploadAudioToRunway,
 } from '@/lib/modules/video-generator/runway';
 import { prepareSeedanceReferenceAudio, RUNWAY_REF_AUDIO_MAX_SEC } from '@/lib/modules/video-generator/index';
-import { assembleMoment } from '@/lib/modules/assembler';
 import logger from '@/lib/logger';
 
 // eslint-disable-next-line

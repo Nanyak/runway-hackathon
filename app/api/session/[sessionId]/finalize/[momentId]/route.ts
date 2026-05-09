@@ -1,18 +1,17 @@
+import path from 'path';
 import { NextRequest } from 'next/server';
 import { getSession, appendEvent } from '@/lib/session';
-import { momentVideoPath, audioPath, finalPath } from '@/lib/utils/file-utils';
-import { assembleMoment } from '@/lib/modules/assembler';
+import { momentVideoPath, finalPath, ensureDir, revisionPath } from '@/lib/utils/file-utils';
 import { loadRevisions } from '@/lib/modules/video-reviser';
 import logger from '@/lib/logger';
 import fs from 'fs/promises';
 
 /**
- * Finalizes one moment: picks the latest ready video (raw or revision),
- * merges the moment audio track via FFmpeg, saves final.mp4.
- * Fires SSE render_complete event on success.
+ * Finalizes one moment: copies the selected Runway video (original or a ready revision) to final.mp4.
+ * Body: `{ "revisionId"?: string }` — omit or empty for v0 (moment video); otherwise must be a ready revision id.
  */
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ sessionId: string; momentId: string }> }
 ): Promise<Response> {
   const { sessionId, momentId } = await params;
@@ -28,26 +27,46 @@ export async function POST(
     const moment = session.moments?.find((m) => m.id === momentId);
     if (!moment) return Response.json({ error: 'Moment not found' }, { status: 404 });
 
-    // Find the best source video: latest ready revision, or the raw video
-    let sourceVideoPath = momentVideoPath(sessionId, momentId);
-    const revisions = await loadRevisions(sessionId, momentId);
-    const latestReady = [...revisions].reverse().find((r) => r.status === 'ready');
-    if (latestReady?.videoPath) {
-      try {
-        await fs.stat(latestReady.videoPath);
-        sourceVideoPath = latestReady.videoPath;
-      } catch {
-        // fallback to raw video
+    let requestedRevisionId: string | undefined;
+    try {
+      const raw: unknown = await req.json();
+      if (
+        raw !== null &&
+        typeof raw === 'object' &&
+        'revisionId' in raw &&
+        typeof (raw as { revisionId: unknown }).revisionId === 'string'
+      ) {
+        const id = (raw as { revisionId: string }).revisionId.trim();
+        if (id.length > 0) requestedRevisionId = id;
       }
+    } catch {
+      /* empty or invalid JSON body → original */
+    }
+
+    let sourceVideoPath = momentVideoPath(sessionId, momentId);
+
+    if (requestedRevisionId !== undefined) {
+      const revisions = await loadRevisions(sessionId, momentId);
+      const rev = revisions.find((r) => r.id === requestedRevisionId);
+      if (!rev || rev.status !== 'ready') {
+        return Response.json({ error: 'Revision not found or not ready' }, { status: 400 });
+      }
+      sourceVideoPath = revisionPath(sessionId, momentId, requestedRevisionId);
+    }
+
+    try {
+      await fs.stat(sourceVideoPath);
+    } catch {
+      return Response.json({ error: 'Selected video file is not available' }, { status: 404 });
     }
 
     const outFinalPath = finalPath(sessionId, momentId);
-    const outAudioPath = audioPath(sessionId, momentId);
 
     // Fire-and-forget — client listens on SSE stream for render_complete
     (async () => {
       try {
-        await assembleMoment(sourceVideoPath, outAudioPath, outFinalPath);
+        await ensureDir(path.dirname(outFinalPath));
+        await fs.copyFile(sourceVideoPath, outFinalPath);
 
         await appendEvent(sessionId, {
           type: 'render_complete',

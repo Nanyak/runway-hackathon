@@ -63,6 +63,10 @@ function VideoCard({ moment, sessionId, videoReady, finalized, downloadUrl }: Vi
     if (videoReady) fetchRevisions();
   }, [videoReady, fetchRevisions]);
 
+  useEffect(() => {
+    if (finalized) setFinalizing(false);
+  }, [finalized]);
+
   // Auto-select latest ready revision
   useEffect(() => {
     const latestReady = [...revisions].reverse().find((r) => r.status === 'ready');
@@ -88,6 +92,13 @@ function VideoCard({ moment, sessionId, videoReady, finalized, downloadUrl }: Vi
     selectedVersion !== 'original' &&
     selectedRevision !== undefined &&
     (selectedRevision.status === 'pending' || selectedRevision.status === 'generating');
+  const clipDownloadHref =
+    videoReady &&
+    currentVideoSrc !== null &&
+    !revisionFailed &&
+    !revisionInFlight
+      ? `${currentVideoSrc}?download=1`
+      : null;
   const duration = Math.round(moment.endSec - moment.startSec);
 
   async function handleFeedback(e: React.FormEvent) {
@@ -115,11 +126,17 @@ function VideoCard({ moment, sessionId, videoReady, finalized, downloadUrl }: Vi
   }
 
   async function handleFinalize() {
-    if (finalizing || finalized) return;
+    if (finalizing || finalized || currentVideoSrc === null || revisionFailed) return;
     setFinalizing(true);
     setError(null);
     try {
-      const res = await fetch(`/api/session/${sessionId}/finalize/${moment.id}`, { method: 'POST' });
+      const body =
+        selectedVersion === 'original' ? {} : { revisionId: selectedVersion };
+      const res = await fetch(`/api/session/${sessionId}/finalize/${moment.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
       if (!res.ok) {
         const d = await res.json() as { error?: string };
         throw new Error(d.error ?? 'Finalize failed');
@@ -137,11 +154,14 @@ function VideoCard({ moment, sessionId, videoReady, finalized, downloadUrl }: Vi
       className="rounded-[20px] border border-[#e5e5e5] bg-white overflow-hidden"
       style={{ boxShadow: 'rgba(0,0,0,0.4) 0px 0px 1px 0px, rgba(0,0,0,0.06) 0px 4px 12px' }}
     >
-      <div className="flex flex-col lg:flex-row">
+      <div className="flex flex-col lg:flex-row lg:items-start">
 
-        {/* ── Left: Video player ── */}
-        <div className="lg:w-64 xl:w-72 flex-shrink-0 bg-black flex flex-col items-center justify-center p-4">
-          <div className="w-full max-w-[180px] aspect-[9/16] bg-[#111] rounded-[12px] overflow-hidden relative">
+        {/* ── Left: Video player (wide column — was capped at 180px) ── */}
+        <div
+          className="w-full lg:w-[min(100%,440px)] xl:w-[min(100%,500px)] 2xl:w-[min(100%,540px)] flex-shrink-0
+            bg-black flex flex-col items-center justify-center p-5 sm:p-6 lg:self-start"
+        >
+          <div className="w-full max-w-[min(100%,380px)] sm:max-w-[420px] lg:max-w-none aspect-[9/16] bg-[#111] rounded-[12px] overflow-hidden relative mx-auto lg:mx-0">
             {videoReady ? (
               revisionFailed ? (
                 <div className="w-full h-full flex items-center justify-center px-2">
@@ -219,7 +239,20 @@ function VideoCard({ moment, sessionId, videoReady, finalized, downloadUrl }: Vi
           <div>
             <div className="flex items-start justify-between gap-3 mb-2">
               <h3 className="font-semibold text-base text-black leading-snug">{moment.title}</h3>
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+                {clipDownloadHref && (
+                  <a
+                    href={clipDownloadHref}
+                    download={downloadFilename}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#e5e5e5] text-black
+                      text-xs font-medium hover:border-black hover:bg-[#f9f8f7] transition-colors"
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                    </svg>
+                    Download clip
+                  </a>
+                )}
                 {finalized && downloadUrl && (
                   <a
                     href={downloadUrl}
@@ -230,7 +263,7 @@ function VideoCard({ moment, sessionId, videoReady, finalized, downloadUrl }: Vi
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
                     </svg>
-                    Download
+                    Final MP4
                   </a>
                 )}
               </div>
@@ -330,7 +363,7 @@ function VideoCard({ moment, sessionId, videoReady, finalized, downloadUrl }: Vi
               <button
                 type="button"
                 onClick={handleFinalize}
-                disabled={finalizing}
+                disabled={finalizing || currentVideoSrc === null || revisionFailed}
                 className="w-full py-2.5 rounded-[9999px] bg-black text-white text-sm font-medium
                   disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
               >
@@ -340,12 +373,12 @@ function VideoCard({ moment, sessionId, videoReady, finalized, downloadUrl }: Vi
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
                     </svg>
-                    Rendering captions…
+                    Saving…
                   </span>
-                ) : 'Finalize & Download'}
+                ) : 'Save as final'}
               </button>
               <p className="text-xs text-center text-[#a59f97]">
-                Burns captions + merges audio — creates the final MP4
+                Saves the version you are watching (v0 or the selected revision) to your final file for download and zip exports.
               </p>
             </div>
           )}
@@ -405,7 +438,7 @@ export default function VideoWorkspace({ moments, sessionId, events }: VideoWork
           <p className="text-sm text-[#777169] mt-0.5">
             {readyCount < totalCount
               ? `${readyCount}/${totalCount} videos generating…`
-              : 'Refine with Runway (video-to-video) or finalize for captioned download'}
+              : 'Refine with Runway, download the clip, or save as final for batch download'}
           </p>
         </div>
         <span className="text-xs text-[#a59f97]">

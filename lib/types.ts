@@ -56,7 +56,7 @@ export interface PipelineEvent {
     | 'storyboard_ready'          // all frames ready (after feedback loop completes)
     | 'storyboard_thinking'       // live AI reasoning message during storyboard planning/imaging
     | 'video_ready'               // moment video ready (text_to_video done)
-    | 'render_complete'   // Remotion + audio merge done
+    | 'render_complete'   // final.mp4 saved (same bytes as selected Runway clip + its audio)
     | 'error'
     | 'gate'
     | 'complete';

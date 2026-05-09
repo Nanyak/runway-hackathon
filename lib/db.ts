@@ -44,9 +44,19 @@ export function getDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_user_sessions_status ON user_sessions(status);
   `);
 
+  migrateUserSessionsSchema(_db);
+
   seedDemoUser(_db);
   logger.info('Database initialised', { path: DB_PATH });
   return _db;
+}
+
+function migrateUserSessionsSchema(db: Database.Database): void {
+  const cols = db.prepare(`PRAGMA table_info(user_sessions)`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === 'display_name')) {
+    db.exec(`ALTER TABLE user_sessions ADD COLUMN display_name TEXT`);
+    logger.info('Migration: user_sessions.display_name added');
+  }
 }
 
 function seedDemoUser(db: Database.Database): void {
@@ -105,6 +115,8 @@ export interface DbSession {
   user_id: string;
   session_file_id: string;
   title: string;
+  /** Optional label shown in history / session header instead of show/speaker/title. */
+  display_name?: string | null;
   status: string;
   speaker_name: string;
   show_name: string;
@@ -150,6 +162,39 @@ export function listUserSessions(userId: string): DbSession[] {
   return db
     .prepare('SELECT * FROM user_sessions WHERE user_id = ? ORDER BY created_at DESC')
     .all(userId) as DbSession[];
+}
+
+/** Card title: custom name wins, then show · speaker, then speaker or DB title. */
+export function formatSessionListLabel(s: DbSession): string {
+  const custom = s.display_name?.trim();
+  if (custom) return custom;
+  if (s.show_name) {
+    return `${s.show_name}${s.speaker_name ? ` · ${s.speaker_name}` : ''}`;
+  }
+  return s.speaker_name || s.title;
+}
+
+export function updateSessionDisplayName(
+  userId: string,
+  sessionFileId: string,
+  displayName: string
+): boolean {
+  const db = getDb();
+  const r = db
+    .prepare(
+      `UPDATE user_sessions SET display_name = ?, updated_at = datetime('now')
+       WHERE session_file_id = ? AND user_id = ?`
+    )
+    .run(displayName, sessionFileId, userId);
+  return r.changes > 0;
+}
+
+export function deleteUserSessionByFileId(userId: string, sessionFileId: string): boolean {
+  const db = getDb();
+  const r = db
+    .prepare(`DELETE FROM user_sessions WHERE session_file_id = ? AND user_id = ?`)
+    .run(sessionFileId, userId);
+  return r.changes > 0;
 }
 
 export function updateSessionStatus(sessionFileId: string, status: string): void {

@@ -117,6 +117,12 @@ export async function ensureDir(p: string): Promise<void> {
   await fs.mkdir(p, { recursive: true });
 }
 
+/** Removes the entire session directory (audio, checkpoints, outputs). */
+export async function removeSessionDir(sessionId: string): Promise<void> {
+  const dir = sessionDir(sessionId);
+  await fs.rm(dir, { recursive: true, force: true });
+}
+
 export async function downloadFile(url: string, dest: string): Promise<void> {
   await ensureDir(path.dirname(dest));
   logger.info('Downloading file', { url: url.substring(0, 80), dest });
