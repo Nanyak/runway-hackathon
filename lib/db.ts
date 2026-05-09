@@ -4,8 +4,9 @@ import fs from 'fs';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import logger from './logger';
+import { dbDirPath } from './utils/persistent-root';
 
-const DB_DIR = path.resolve(process.cwd(), 'data');
+const DB_DIR = dbDirPath();
 const DB_PATH = path.join(DB_DIR, 'app.db');
 
 let _db: Database.Database | null = null;

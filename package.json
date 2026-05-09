@@ -2,11 +2,18 @@
   "name": "runway-hackathon",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "next start -H 0.0.0.0",
+    "lint": "next lint",
+    "railway": "railway",
+    "railway:login": "railway login",
+    "railway:link": "railway link",
+    "railway:deploy": "railway up"
   },
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.29.1",
@@ -36,6 +43,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@railway/cli": "^4.57.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.19.40",

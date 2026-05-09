@@ -1,8 +1,9 @@
 import winston from 'winston';
 import path from 'path';
 import fs from 'fs';
+import { persistentDataRoot } from './utils/persistent-root';
 
-const logDir = path.join(process.cwd(), 'temp');
+const logDir = path.join(persistentDataRoot(), 'temp');
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true });
 }

@@ -4,8 +4,9 @@ import https from 'https';
 import http from 'http';
 import { createWriteStream } from 'fs';
 import logger from '../logger';
+import { sessionsRoot } from './persistent-root';
 
-const TEMP_ROOT = path.resolve(process.cwd(), 'temp', 'sessions');
+const TEMP_ROOT = sessionsRoot();
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function assertSafeId(id: string, label: string): void {
