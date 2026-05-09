@@ -12,6 +12,7 @@
     "lint": "next lint",
     "railway": "railway",
     "railway:login": "railway login",
+    "railway:init": "railway init",
     "railway:link": "railway link",
     "railway:deploy": "railway up"
   },
@@ -31,7 +32,7 @@
     "ffprobe-static": "^3.1.0",
     "fluent-ffmpeg": "^2.1.3",
     "formidable": "^3.5.4",
-    "next": "14.2.29",
+    "next": "14.2.35",
     "next-auth": "^4.24.14",
     "openai": "^6.37.0",
     "p-limit": "^7.3.0",
@@ -51,7 +52,7 @@
     "@types/react-dom": "^18",
     "autoprefixer": "^10.5.0",
     "eslint": "^8",
-    "eslint-config-next": "14.2.29",
+    "eslint-config-next": "14.2.35",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
