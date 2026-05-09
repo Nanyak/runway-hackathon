@@ -10,5 +10,5 @@ export const StoryboardFrameSchema = z.object({
 
 export const StoryboardPlanSchema = z.object({
   frames: z.array(StoryboardFrameSchema).min(4).max(16),
-  overallMotionPrompt: z.string().min(20).max(900),
+  overallMotionPrompt: z.string().min(20).max(1000),
 });

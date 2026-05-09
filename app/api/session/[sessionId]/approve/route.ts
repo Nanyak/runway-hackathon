@@ -7,6 +7,7 @@ const ApproveSchema = z.object({
   approvedIds: z.array(z.string().uuid()),
   hookEdits: z.record(z.string().uuid(), z.string().max(1000)).optional().default({}),
   styleAnchors: z.record(z.string().uuid(), z.string().max(300)).optional().default({}),
+  sheetVariantCount: z.number().int().min(1).max(3).default(2),
 });
 
 export async function POST(
@@ -33,7 +34,7 @@ export async function POST(
       return Response.json({ error: 'Invalid request body', details: parsed.error.flatten() }, { status: 400 });
     }
 
-    const { approvedIds, hookEdits, styleAnchors } = parsed.data;
+    const { approvedIds, hookEdits, styleAnchors, sheetVariantCount } = parsed.data;
     const detectedMomentIds = new Set((session.moments ?? []).map((m) => m.id));
     for (const momentId of approvedIds) {
       if (!detectedMomentIds.has(momentId)) {
@@ -50,6 +51,7 @@ export async function POST(
       approvedMomentIds: approvedIds,
       hookEdits,
       momentStyleAnchors: styleAnchors,
+      config: { ...session.config, sheetVariantCount },
       status: 'awaiting_storyboard_review',
     });
 

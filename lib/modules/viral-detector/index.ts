@@ -60,7 +60,6 @@ export async function detectMoments(
       // Sanitize: trim moments that exceed Seedance2's 15s max, discard those under 5s.
       const TARGET_DURATION = 15;
       const MIN_DURATION = 5;
-      const MAX_DURATION = 16;
       const sanitized = Array.isArray(parsed)
         ? (parsed as unknown[]).flatMap((m) => {
             if (typeof m !== 'object' || m === null) return [];
@@ -69,9 +68,11 @@ export async function detectMoments(
             const end = typeof obj.endSec === 'number' ? obj.endSec : null;
             if (start === null || end === null) return [m];
             const dur = end - start;
-            if (dur > MAX_DURATION) {
+            if (dur > TARGET_DURATION) {
+              // Round to 2 decimal places to avoid float imprecision (e.g. start + 15 = 15.000000000000002)
+              const trimmedEnd = Math.round((start + TARGET_DURATION) * 100) / 100;
               logger.warn('Trimming moment to target duration', { original: dur, target: TARGET_DURATION });
-              return [{ ...obj, endSec: start + TARGET_DURATION }];
+              return [{ ...obj, endSec: trimmedEnd }];
             }
             if (dur < MIN_DURATION) {
               logger.warn('Discarding moment shorter than minimum', { dur });

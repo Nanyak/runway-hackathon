@@ -4,8 +4,11 @@ import { Readable } from 'stream';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { createSession } from '@/lib/session';
 import { ensureDir, sessionDir } from '@/lib/utils/file-utils';
+import { createSessionRecord } from '@/lib/db';
 import logger from '@/lib/logger';
 import { SessionConfig } from '@/lib/types';
 import { DEFAULT_STYLE_ANCHOR, resolveStyleAnchor } from '@/lib/config/style-presets';
@@ -19,19 +22,27 @@ const SessionConfigSchema = z.object({
   styleAnchor: z.string().max(500),
   speakerName: z.string().max(200),
   showName: z.string().max(200),
+  sheetVariantCount: z.number().int().min(1).max(3).default(2),
 });
 const DEFAULT_CONFIG: SessionConfig = {
   maxMoments: 3,
-  imageModel: 'gen4_image',
+  imageModel: 'gpt_image_2',
   videoModel: 'seedance2',
   orientation: 'vertical',
   styleAnchor: DEFAULT_STYLE_ANCHOR,
   speakerName: '',
   showName: '',
+  sheetVariantCount: 2,
 };
 
 export async function POST(req: NextRequest): Promise<Response> {
   try {
+    const authSession = await getServerSession(authOptions);
+    if (!authSession?.user) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = (authSession.user as { id?: string }).id ?? '';
+
     const formData = await req.formData();
     const file = formData.get('file');
     const configRaw = formData.get('config');
@@ -58,8 +69,9 @@ export async function POST(req: NextRequest): Promise<Response> {
         }
         config = {
           ...parsed.data,
-          imageModel: parsed.data.imageModel ?? 'gen4_image',
+          imageModel: 'gpt_image_2',
           styleAnchor: resolveStyleAnchor(parsed.data.styleAnchor),
+          sheetVariantCount: parsed.data.sheetVariantCount ?? 2,
         };
       }
     } catch (err) {
@@ -87,6 +99,13 @@ export async function POST(req: NextRequest): Promise<Response> {
     });
 
     const session = await createSession(config, audioFilePath);
+
+    // Record in SQLite for history
+    createSessionRecord(userId, session.id, {
+      title: 'Untitled podcast',
+      speakerName: config.speakerName,
+      showName: config.showName,
+    });
 
     logger.info('Audio uploaded', {
       sessionId: session.id,

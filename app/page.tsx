@@ -10,12 +10,13 @@ import { PRODUCT_VALUE_PROPOSITION } from '@/lib/config/runway-highlights';
 
 const DEFAULT_CONFIG: SessionConfig = {
   maxMoments: 3,
-  imageModel: 'gen4_image',
+  imageModel: 'gpt_image_2',
   videoModel: 'seedance2',
   orientation: 'vertical',
   styleAnchor: DEFAULT_STYLE_ANCHOR,
   speakerName: '',
   showName: '',
+  sheetVariantCount: 2,
 };
 
 export default function HomePage() {

@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { SessionConfig } from '@/lib/types';
-import { IMAGE_MODEL_CONFIGS, DEFAULT_IMAGE_MODEL_ID } from '@/lib/config/models';
 
 interface ConfigPanelProps {
   config: SessionConfig;
@@ -60,32 +59,21 @@ export default function ConfigPanel({ config, onChange }: ConfigPanelProps) {
             </div>
           </div>
 
-          {/* Image model (storyboard stills) */}
+          {/* Image model — locked to GPT Image-2 */}
           <div>
-            <label className="text-sm text-black font-medium block mb-2">Image Model (storyboard stills)</label>
-            <select
-              value={config.imageModel ?? DEFAULT_IMAGE_MODEL_ID}
-              onChange={(e) => update({ imageModel: e.target.value })}
-              className="w-full rounded border border-[#e5e5e5] bg-white px-3 py-2 text-sm text-black focus:outline-none focus:border-black"
-            >
-              {IMAGE_MODEL_CONFIGS.map((m) => (
-                <option key={m.id} value={m.id}>{m.label}</option>
-              ))}
-            </select>
-            {(() => {
-              const selected = IMAGE_MODEL_CONFIGS.find((m) => m.id === (config.imageModel ?? DEFAULT_IMAGE_MODEL_ID));
-              return selected ? (
-                <p className="mt-1.5 text-xs text-[#777169]">{selected.description}</p>
-              ) : null;
-            })()}
+            <label className="text-sm text-black font-medium block mb-2">Image Model</label>
+            <div className="w-full rounded border border-[#e5e5e5] bg-[#f9f8f7] px-3 py-2 text-sm text-black flex items-center justify-between">
+              <span>GPT Image-2</span>
+              <span className="text-xs text-[#a59f97] font-medium">32K prompt · up to 3 variants</span>
+            </div>
           </div>
 
-          {/* Video model — locked to Seedance 2 (only model supporting image refs + audio + prompt) */}
+          {/* Video model — locked to Seedance 2 */}
           <div>
             <label className="text-sm text-black font-medium block mb-2">Video Model</label>
             <div className="w-full rounded border border-[#e5e5e5] bg-[#f9f8f7] px-3 py-2 text-sm text-black flex items-center justify-between">
               <span>Seedance 2</span>
-              <span className="text-xs text-[#a59f97] font-medium">Only model with image + audio refs</span>
+              <span className="text-xs text-[#a59f97] font-medium">Image + audio refs</span>
             </div>
           </div>
 

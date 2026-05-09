@@ -11,15 +11,15 @@ interface MomentApprovalProps {
   onApproved: () => void;
 }
 
-// 3 variation images ($0.10 each) + 1 video ($0.50)
-const VARIATION_COUNT = 3;
 const IMAGE_COST = 0.10;
 const VIDEO_COST = 0.50;
 
-function estimateCost(count: number): string {
-  const total = count * (VARIATION_COUNT * IMAGE_COST + VIDEO_COST);
+function estimateCost(momentCount: number, variantCount: number): string {
+  const total = momentCount * (variantCount * IMAGE_COST + VIDEO_COST);
   return total.toFixed(2);
 }
+
+const VARIANT_OPTIONS = [1, 2, 3] as const;
 
 export default function MomentApproval({ moments, sessionId, onApproved }: MomentApprovalProps) {
   const [checkedIds, setCheckedIds] = useState<Set<string>>(
@@ -31,6 +31,7 @@ export default function MomentApproval({ moments, sessionId, onApproved }: Momen
   const [styleEdits, setStyleEdits] = useState<Record<string, string>>(
     Object.fromEntries(moments.map((m) => [m.id, resolveToPresetValue(m.suggestedStyle, m.mood)]))
   );
+  const [variantCount, setVariantCount] = useState<1 | 2 | 3>(2);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -62,7 +63,7 @@ export default function MomentApproval({ moments, sessionId, onApproved }: Momen
       const res = await fetch(`/api/session/${sessionId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approvedIds, hookEdits, styleAnchors: styleEdits }),
+        body: JSON.stringify({ approvedIds, hookEdits, styleAnchors: styleEdits, sheetVariantCount: variantCount }),
       });
 
       if (!res.ok) {
@@ -113,14 +114,43 @@ export default function MomentApproval({ moments, sessionId, onApproved }: Momen
       <div className="rounded-[16px] border border-[#e5e5e5] bg-white p-5"
         style={{ boxShadow: 'rgba(0,0,0,0.4) 0px 0px 1px 0px, rgba(0,0,0,0.04) 0px 2px 4px' }}
       >
+        {/* Storyboard variant picker */}
+        <div className="mb-4 pb-4 border-b border-[#e5e5e5]">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm text-black font-medium">Storyboard variants per moment</label>
+            <span className="text-xs text-[#a59f97]">GPT Image-2</span>
+          </div>
+          <div className="flex gap-2">
+            {VARIANT_OPTIONS.map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setVariantCount(n)}
+                className={`flex-1 py-2 rounded-[9999px] text-sm font-medium border transition-colors ${
+                  variantCount === n
+                    ? 'bg-black text-[#fdfcfc] border-black'
+                    : 'bg-white text-black border-[#e5e5e5] hover:bg-[#f5f3f1]'
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          {variantCount > 1 && (
+            <p className="mt-1.5 text-xs text-[#a59f97]">
+              More variants take longer — each extra option adds ~30–60s per moment.
+            </p>
+          )}
+        </div>
+
         <div className="flex items-center justify-between mb-3">
           <div>
             <p className="text-sm text-black font-medium">
               {selectedCount} moment{selectedCount !== 1 ? 's' : ''} selected
             </p>
             <p className="text-xs text-[#777169] mt-0.5">
-              Estimated cost: ~${estimateCost(selectedCount)}
-              <span className="text-[#a59f97]"> ({selectedCount} × 3 images + 1 video)</span>
+              Estimated cost: ~${estimateCost(selectedCount, variantCount)}
+              <span className="text-[#a59f97]"> ({selectedCount} × {variantCount} image{variantCount !== 1 ? 's' : ''} + 1 video)</span>
             </p>
             <p className="text-xs text-[#a59f97] mt-2 leading-snug">
               You approve before Runway jobs run — no surprise charges on moments you skip.

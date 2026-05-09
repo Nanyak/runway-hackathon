@@ -298,7 +298,12 @@ export async function pollAndDownload(jobId: string, destPath: string): Promise<
     }
 
     if (result.status === 'FAILED') {
-      throw new RetryableError(`Video job failed: ${result.failure ?? 'unknown'}`);
+      const msg = result.failure ?? 'unknown';
+      // Content moderation blocks won't be resolved by retrying — surface as permanent
+      if (/content.moderation|blocked.*model.provider|model.provider.*blocked/i.test(msg)) {
+        throw new PermanentError(`Video job failed: ${msg}`);
+      }
+      throw new RetryableError(`Video job failed: ${msg}`);
     }
   }
 

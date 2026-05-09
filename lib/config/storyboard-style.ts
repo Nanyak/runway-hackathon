@@ -16,7 +16,11 @@ export const STORYBOARD_SHEET_STYLE =
 export const STORYBOARD_VIDEO_PROMPT =
   'Use the storyboard @storyboard as sequential shot guidance, not as a static image. ' +
   'Do not treat the storyboard as one image. Follow each panel as a separate beat. ' +
+  'Use @character as the consistent visual identity for the speaker across all shots. ' +
   'Motion follows the energy and rhythm of the spoken audio.';
 
 /** Tag used when uploading the storyboard sheet to Runway. */
 export const STORYBOARD_IMAGE_TAG = 'storyboard';
+
+/** Tag used when uploading the character portrait to Runway. */
+export const CHARACTER_IMAGE_TAG = 'character';

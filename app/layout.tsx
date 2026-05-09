@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import Providers from '@/components/Providers';
+import NavBar from '@/components/NavBar';
 
 export const metadata: Metadata = {
   title: 'PodcastClips — Viral Moments Generator',
@@ -13,7 +15,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="bg-[#fdfcfc] text-black min-h-screen">{children}</body>
+      <body className="bg-[#fdfcfc] text-black min-h-screen">
+        <Providers>
+          <NavBar />
+          <div className="pt-12">{children}</div>
+        </Providers>
+      </body>
     </html>
   );
 }

@@ -10,11 +10,10 @@ function frameTag(index: number): string {
   return `frame${index}`;
 }
 
-const SHEET_VARIANT_COUNT = 3;
-
 /**
- * Generates 3 storyboard sheet variants in a single API call using outputCount.
- * Variants are saved as frame_0.png, frame_1.png, frame_2.png.
+ * Generates N storyboard sheet variants in a single API call using outputCount.
+ * Variant count comes from config.sheetVariantCount (default 2, max 3).
+ * Variants are saved as frame_0.png, frame_1.png, … frame_N-1.png.
  * onSheetReady is called for each variant as it becomes available.
  */
 export async function generateStoryboardSheet(
@@ -26,18 +25,20 @@ export async function generateStoryboardSheet(
 ): Promise<string[]> {
   await ensureDir(momentDir(sessionId, momentId));
 
+  const variantCount = Math.min(Math.max(config.sheetVariantCount ?? 2, 1), 3);
+
   const panelDescriptions = plan.frames
     .map((f, i) => `Panel ${i + 1}: ${f.sceneDescription} ${f.motionContribution}`)
     .join('\n');
 
   const prompt = `${STORYBOARD_SHEET_STYLE}\n\nPANELS (top to bottom):\n${panelDescriptions}`;
 
-  const destPaths = Array.from({ length: SHEET_VARIANT_COUNT }, (_, i) =>
+  const destPaths = Array.from({ length: variantCount }, (_, i) =>
     storyboardFrameImagePath(sessionId, momentId, i)
   );
 
   await textToImageMulti(prompt, config, destPaths);
-  logger.info('Storyboard sheet variants generated', { momentId, panels: plan.frames.length, variants: SHEET_VARIANT_COUNT });
+  logger.info('Storyboard sheet variants generated', { momentId, panels: plan.frames.length, variants: variantCount });
 
   // Notify caller for each variant (in parallel — all are already on disk)
   await Promise.all(

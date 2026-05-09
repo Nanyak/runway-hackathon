@@ -22,7 +22,9 @@ import {
   pollAndDownload,
   clampDurationForSeedance,
 } from './runway';
-import { STORYBOARD_VIDEO_PROMPT, STORYBOARD_IMAGE_TAG } from '@/lib/config/storyboard-style';
+import { PermanentError } from '@/lib/utils/retry';
+import { STORYBOARD_VIDEO_PROMPT, STORYBOARD_IMAGE_TAG, CHARACTER_IMAGE_TAG } from '@/lib/config/storyboard-style';
+import { getVideoModelConfig } from '@/lib/config/models';
 import { retry } from '@/lib/utils/retry';
 import logger from '@/lib/logger';
 
@@ -72,7 +74,8 @@ export async function generateVideoFromStoryboard(
   momentId: string,
   sessionId: string,
   config: SessionConfig,
-  durationSec: number
+  durationSec: number,
+  characterRefUri?: string
 ): Promise<string> {
   await ensureDir(momentDir(sessionId, momentId));
   const destPath = momentVideoPath(sessionId, momentId);
@@ -107,16 +110,24 @@ export async function generateVideoFromStoryboard(
     });
   }
 
-  const RUNWAY_PROMPT_MAX = 1000;
-  const promptText = STORYBOARD_VIDEO_PROMPT.slice(0, RUNWAY_PROMPT_MAX);
+  const promptLimit = getVideoModelConfig('seedance2').promptLimit;
+  const promptText = STORYBOARD_VIDEO_PROMPT.slice(0, promptLimit);
 
-  // Submit text_to_video with the storyboard sheet + audio
+  // Build references: storyboard sheet first, then character portrait if available
+  const references: Array<{ uri: string; tag?: string }> = [
+    { uri: sheetUri, tag: STORYBOARD_IMAGE_TAG },
+  ];
+  if (characterRefUri) {
+    references.push({ uri: characterRefUri, tag: CHARACTER_IMAGE_TAG });
+  }
+
+  // Submit text_to_video with the storyboard sheet + optional character ref + audio
   const body: Record<string, unknown> = {
     model: 'seedance2',
     promptText,
     duration,
     ratio,
-    references: [{ uri: sheetUri, tag: STORYBOARD_IMAGE_TAG }],
+    references,
   };
 
   if (referenceAudioUri) {
@@ -129,22 +140,37 @@ export async function generateVideoFromStoryboard(
     duration,
   });
 
-  const jobId = await retry(
-    async () => {
-      try {
-        const created = await getRunwaySdk().textToVideo.create(
-          body as unknown as RunwayML.TextToVideoCreateParams
-        );
-        const { id } = await created;
-        return id;
-      } catch (err) {
-        mapRunwaySdkError(err, 'storyboard_text_to_video');
-      }
-    },
-    { maxAttempts: 3, delayMs: 5000, backoff: 'exponential' }
-  );
+  const submitAndPoll = async (submitBody: Record<string, unknown>) => {
+    const jobId = await retry(
+      async () => {
+        try {
+          const created = await getRunwaySdk().textToVideo.create(
+            submitBody as unknown as RunwayML.TextToVideoCreateParams
+          );
+          const { id } = await created;
+          return id;
+        } catch (err) {
+          mapRunwaySdkError(err, 'storyboard_text_to_video');
+        }
+      },
+      { maxAttempts: 3, delayMs: 5000, backoff: 'exponential' }
+    );
+    await pollAndDownload(jobId, destPath);
+  };
 
-  await pollAndDownload(jobId, destPath);
+  try {
+    await submitAndPoll(body);
+  } catch (err) {
+    if (err instanceof PermanentError && characterRefUri) {
+      // Content moderation may be triggered by the character portrait — retry without it
+      logger.warn('Content moderation blocked storyboard video; retrying without character ref', { momentId });
+      const bodyWithoutChar: Record<string, unknown> = { ...body, references: [{ uri: sheetUri, tag: STORYBOARD_IMAGE_TAG }] };
+      await submitAndPoll(bodyWithoutChar);
+    } else {
+      throw err;
+    }
+  }
+
   logger.info('Storyboard video generated', { momentId, destPath });
   return destPath;
 }

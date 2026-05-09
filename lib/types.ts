@@ -22,6 +22,8 @@ export interface Session {
   hookEdits?: Record<string, string>;
   // Per-moment style anchors: user-approved style string (AI-suggested or overridden at Gate 1)
   momentStyleAnchors?: Record<string, string>;
+  // Local path to the GPT Image 2 character portrait generated before storyboard planning
+  characterRefPath?: string;
   // Gate 1.5: storyboard review state per moment
   storyboards?: Record<string, StoryboardPlan>;
   storyboardApprovals?: Record<string, boolean>;
@@ -32,13 +34,15 @@ export interface Session {
 
 export interface SessionConfig {
   maxMoments: number;
-  /** Runway `text_to_image` only (e.g. gen4_image). Seedance 2 is video-only — see `videoModel`. */
+  /** Locked to gpt_image_2 — kept for legacy API compat. */
   imageModel?: string;
   videoModel: string;      // gen4.5 | seedance2 | etc.
   orientation: 'vertical' | 'landscape';
   styleAnchor: string;
   speakerName: string;
   showName: string;
+  /** Number of storyboard sheet variants to generate (1–3). More = longer wait. */
+  sheetVariantCount?: number;
 }
 
 export interface PipelineEvent {
@@ -50,6 +54,7 @@ export interface PipelineEvent {
     | 'storyboard_frame_ready'    // one storyboard frame image generated
     | 'storyboard_analysis_complete' // AI decided which frames to regenerate
     | 'storyboard_ready'          // all frames ready (after feedback loop completes)
+    | 'storyboard_thinking'       // live AI reasoning message during storyboard planning/imaging
     | 'video_ready'               // moment video ready (text_to_video done)
     | 'render_complete'   // Remotion + audio merge done
     | 'error'

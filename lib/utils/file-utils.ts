@@ -94,6 +94,11 @@ export function storyboardFrameImagePath(sessionId: string, momentId: string, in
   return path.join(momentDir(sessionId, momentId), `frame_${index}.png`);
 }
 
+/** GPT Image 2 character portrait extracted from a moment's storyboard sheet. */
+export function characterRefImagePath(sessionId: string, momentId: string): string {
+  return path.join(momentDir(sessionId, momentId), 'character_ref.png');
+}
+
 /** @deprecated use variationImagePath */
 export function momentImagePath(sessionId: string, momentId: string): string {
   return path.join(momentDir(sessionId, momentId), 'bg.png');

@@ -1,6 +1,7 @@
 import pLimit from 'p-limit';
 import { Moment, StoryboardPlan } from '@/lib/types';
 import { getSession, updateSession, appendEvent, saveCheckpoint, loadCheckpoint } from '@/lib/session';
+import { updateSessionStatus } from '@/lib/db';
 import {
   audioPath,
   storyboardPath,
@@ -23,6 +24,33 @@ import { sleep } from '@/lib/utils/retry';
 import logger from '@/lib/logger';
 
 const POLL_MS = 2000;
+
+// ─── Thinking event helper ────────────────────────────────────────────────────
+
+async function emitThinking(
+  sessionId: string,
+  message: string,
+  phase: 'planning' | 'imaging'
+): Promise<void> {
+  await appendEvent(sessionId, {
+    type: 'storyboard_thinking',
+    timestamp: new Date().toISOString(),
+    data: { message, phase },
+  });
+}
+
+async function emitThinkingChunk(
+  sessionId: string,
+  chunk: string,
+  done: boolean,
+  phase: 'planning' | 'imaging'
+): Promise<void> {
+  await appendEvent(sessionId, {
+    type: 'storyboard_thinking',
+    timestamp: new Date().toISOString(),
+    data: { chunk, streaming: !done, phase },
+  });
+}
 
 // ─── Gate helpers ─────────────────────────────────────────────────────────────
 
@@ -164,6 +192,9 @@ export async function runPipeline(sessionId: string): Promise<void> {
     const { approvedIds, hookEdits } = await waitForApproval(sessionId);
     logger.info('Moments approved', { sessionId, count: approvedIds.length });
 
+    // Re-read session to pick up config changes written by the approve route (e.g. sheetVariantCount)
+    const approvedSession = (await getSession(sessionId)) ?? session;
+
     const approvedMoments = moments
       .filter((m) => approvedIds.includes(m.id))
       .map((m) => ({ ...m, hook: hookEdits[m.id] ?? m.hook }));
@@ -183,8 +214,17 @@ export async function runPipeline(sessionId: string): Promise<void> {
           let storyboard = await readJsonFile<StoryboardPlan>(storyboardPath(sessionId, moment.id));
 
           if (!storyboard) {
-            const styleAnchor = session.momentStyleAnchors?.[moment.id];
-            storyboard = await planStoryboard(moment, transcript!, session.config, podcastContext ?? undefined, styleAnchor);
+            const styleAnchor = approvedSession.momentStyleAnchors?.[moment.id];
+            await emitThinking(sessionId, `Planning storyboard for "${moment.title}"…`, 'planning');
+            storyboard = await planStoryboard(
+              moment,
+              transcript!,
+              approvedSession.config,
+              podcastContext ?? undefined,
+              styleAnchor,
+              (msg) => void emitThinking(sessionId, msg, 'planning'),
+              (chunk, done) => void emitThinkingChunk(sessionId, chunk, done, 'planning')
+            );
             await ensureDir(momentDir(sessionId, moment.id));
             await atomicWriteJson(storyboardPath(sessionId, moment.id), storyboard);
           }
@@ -243,12 +283,24 @@ export async function runPipeline(sessionId: string): Promise<void> {
             return;
           }
 
+          const variantCount = Math.min(Math.max(approvedSession.config.sheetVariantCount ?? 2, 1), 3);
+          await emitThinking(
+            sessionId,
+            `Generating ${variantCount} storyboard variant${variantCount > 1 ? 's' : ''} with GPT Image-2…`,
+            'imaging'
+          );
+
           const variantPaths = await generateStoryboardSheet(
             storyboard,
             moment.id,
             sessionId,
-            session.config,
+            approvedSession.config,
             async (_imagePath, variantIndex) => {
+              await emitThinking(
+                sessionId,
+                `Variant ${variantIndex + 1} of ${variantCount} ready`,
+                'imaging'
+              );
               await appendEvent(sessionId, {
                 type: 'storyboard_frame_ready',
                 timestamp: new Date().toISOString(),
@@ -330,7 +382,7 @@ export async function runPipeline(sessionId: string): Promise<void> {
           }
 
           const durationSec = moment.endSec - moment.startSec;
-          await generateVideoFromStoryboard(storyboard, moment.id, sessionId, session.config, durationSec);
+          await generateVideoFromStoryboard(storyboard, moment.id, sessionId, approvedSession.config, durationSec);
 
           await appendEvent(sessionId, {
             type: 'video_ready',
@@ -345,6 +397,7 @@ export async function runPipeline(sessionId: string): Promise<void> {
 
     // ── Done — hand off to per-moment feedback loop ───────────────────────
     await updateSession(sessionId, { status: 'awaiting_feedback' });
+    updateSessionStatus(sessionId, 'complete');
     await appendEvent(sessionId, {
       type: 'complete',
       timestamp: new Date().toISOString(),
@@ -356,6 +409,7 @@ export async function runPipeline(sessionId: string): Promise<void> {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.error('Pipeline error', { sessionId, error: msg });
+    updateSessionStatus(sessionId, 'error');
     await updateSession(sessionId, { status: 'error', error: msg }).catch(() => undefined);
     await appendEvent(sessionId, {
       type: 'error',
