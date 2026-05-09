@@ -1,0 +1,433 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1778256226874,
+  "projectRoot": "/Users/thangdq/runway-hackathon",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "next",
+        "version": "14.2.29",
+        "category": "fullstack"
+      },
+      {
+        "name": "react",
+        "version": "18",
+        "category": "frontend"
+      },
+      {
+        "name": "react-dom",
+        "version": "18",
+        "category": "frontend"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "npx tsc --noEmit 2>&1 | grep -v \"ConfigPanel\" | head -30",
+    "testCommand": null,
+    "lintCommand": "npm run lint",
+    "devCommand": "npm run dev",
+    "scripts": {
+      "dev": "next dev",
+      "build": "next build",
+      "start": "next start",
+      "lint": "next lint"
+    }
+  },
+  "conventions": {
+    "namingStyle": "camelCase",
+    "importStyle": "ES modules",
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "app",
+      "components",
+      "lib"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "app": {
+      "path": "app",
+      "purpose": "Application code",
+      "fileCount": 3,
+      "lastAccessed": 1778256226868,
+      "keyFiles": [
+        "globals.css",
+        "layout.tsx",
+        "page.tsx"
+      ]
+    },
+    "components": {
+      "path": "components",
+      "purpose": "UI components",
+      "fileCount": 0,
+      "lastAccessed": 1778256226868,
+      "keyFiles": []
+    },
+    "lib": {
+      "path": "lib",
+      "purpose": "Library code",
+      "fileCount": 3,
+      "lastAccessed": 1778256226871,
+      "keyFiles": [
+        "logger.ts",
+        "session.ts",
+        "types.ts"
+      ]
+    },
+    "temp": {
+      "path": "temp",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1778256226871,
+      "keyFiles": [
+        "app.log"
+      ]
+    },
+    "app/api": {
+      "path": "app/api",
+      "purpose": "API routes",
+      "fileCount": 0,
+      "lastAccessed": 1778256226872,
+      "keyFiles": []
+    },
+    "lib/utils": {
+      "path": "lib/utils",
+      "purpose": "Utility functions",
+      "fileCount": 2,
+      "lastAccessed": 1778256226872,
+      "keyFiles": [
+        "file-utils.ts",
+        "retry.ts"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "lib/modules/image-generator/index.ts",
+      "accessCount": 22,
+      "lastAccessed": 1778279469563,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/video-generator/index.ts",
+      "accessCount": 20,
+      "lastAccessed": 1778279469745,
+      "type": "file"
+    },
+    {
+      "path": "lib/pipeline/orchestrator.ts",
+      "accessCount": 17,
+      "lastAccessed": 1778328035996,
+      "type": "file"
+    },
+    {
+      "path": "lib/types.ts",
+      "accessCount": 17,
+      "lastAccessed": 1778328039510,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/image-generator/runway.ts",
+      "accessCount": 13,
+      "lastAccessed": 1778279469376,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/storyboard-planner/prompts.ts",
+      "accessCount": 12,
+      "lastAccessed": 1778328043833,
+      "type": "file"
+    },
+    {
+      "path": "app/api/session/[sessionId]/approve/route.ts",
+      "accessCount": 11,
+      "lastAccessed": 1778328044022,
+      "type": "file"
+    },
+    {
+      "path": "components/session/MomentCard.tsx",
+      "accessCount": 10,
+      "lastAccessed": 1778328212196,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/scene-planner/index.ts",
+      "accessCount": 9,
+      "lastAccessed": 1778273636935,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/video-generator/runway.ts",
+      "accessCount": 9,
+      "lastAccessed": 1778273694880,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/viral-detector/index.ts",
+      "accessCount": 8,
+      "lastAccessed": 1778328036201,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/viral-detector/prompts.ts",
+      "accessCount": 8,
+      "lastAccessed": 1778328036400,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/transcription/index.ts",
+      "accessCount": 7,
+      "lastAccessed": 1778257785490,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/scene-planner/schema.ts",
+      "accessCount": 7,
+      "lastAccessed": 1778260182801,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/viral-detector/schema.ts",
+      "accessCount": 7,
+      "lastAccessed": 1778328044275,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/scene-planner/prompts.ts",
+      "accessCount": 6,
+      "lastAccessed": 1778260242375,
+      "type": "file"
+    },
+    {
+      "path": "lib/utils/file-utils.ts",
+      "accessCount": 6,
+      "lastAccessed": 1778274112485,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/storyboard-planner/index.ts",
+      "accessCount": 6,
+      "lastAccessed": 1778328039094,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/storyboard-planner/schema.ts",
+      "accessCount": 6,
+      "lastAccessed": 1778328044476,
+      "type": "file"
+    },
+    {
+      "path": "app/api/upload/route.ts",
+      "accessCount": 5,
+      "lastAccessed": 1778256995448,
+      "type": "file"
+    },
+    {
+      "path": "lib/session.ts",
+      "accessCount": 5,
+      "lastAccessed": 1778256995539,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/ingestion/index.ts",
+      "accessCount": 5,
+      "lastAccessed": 1778257339613,
+      "type": "file"
+    },
+    {
+      "path": "app/api/session/[sessionId]/audio/[momentId]/route.ts",
+      "accessCount": 5,
+      "lastAccessed": 1778258589196,
+      "type": "file"
+    },
+    {
+      "path": "app/api/session/[sessionId]/stream/route.ts",
+      "accessCount": 3,
+      "lastAccessed": 1778256730827,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/transcription/whisper.ts",
+      "accessCount": 3,
+      "lastAccessed": 1778257801281,
+      "type": "file"
+    },
+    {
+      "path": "app/api/session/[sessionId]/scenes/route.ts",
+      "accessCount": 3,
+      "lastAccessed": 1778258282981,
+      "type": "file"
+    },
+    {
+      "path": "app/api/session/[sessionId]/select-frame/route.ts",
+      "accessCount": 3,
+      "lastAccessed": 1778274575045,
+      "type": "file"
+    },
+    {
+      "path": "app/api/session/[sessionId]/route.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778256547564,
+      "type": "file"
+    },
+    {
+      "path": "app/api/download/[sessionId]/[momentId]/route.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778256548328,
+      "type": "file"
+    },
+    {
+      "path": "app/api/download/[sessionId]/zip/route.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778256548710,
+      "type": "file"
+    },
+    {
+      "path": "app/api/session/[sessionId]/render/route.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778256549489,
+      "type": "file"
+    },
+    {
+      "path": "app/api/session/[sessionId]/image/[sceneId]/route.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778258594561,
+      "type": "file"
+    },
+    {
+      "path": "app/api/session/[sessionId]/clip/[sceneId]/route.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778258599687,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/remotion-composition/MomentVideo.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1778259890283,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/assembler/index.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778259957471,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/remotion-composition/index.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778259959447,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/storyboard-analyzer/index.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778278210472,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/viral-detector/deduplicator.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778278213109,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/frame-planner/index.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778328039290,
+      "type": "file"
+    },
+    {
+      "path": "lib/utils/retry.ts",
+      "accessCount": 1,
+      "lastAccessed": 1778256309017,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/video-generator/jobStore.ts",
+      "accessCount": 1,
+      "lastAccessed": 1778256313179,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/audio-extractor/index.ts",
+      "accessCount": 1,
+      "lastAccessed": 1778256316744,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/ingestion/ffprobe.ts",
+      "accessCount": 1,
+      "lastAccessed": 1778256318694,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/remotion-composition/render-worker.ts",
+      "accessCount": 1,
+      "lastAccessed": 1778256326939,
+      "type": "file"
+    },
+    {
+      "path": "lib/logger.ts",
+      "accessCount": 1,
+      "lastAccessed": 1778256327309,
+      "type": "file"
+    },
+    {
+      "path": "components/session/SceneGrid.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1778258287702,
+      "type": "file"
+    },
+    {
+      "path": "app/api/session/[sessionId]/moments/[momentId]/revise/route.ts",
+      "accessCount": 1,
+      "lastAccessed": 1778273642478,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/frame-planner/schema.ts",
+      "accessCount": 1,
+      "lastAccessed": 1778273694401,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/frame-planner/prompts.ts",
+      "accessCount": 1,
+      "lastAccessed": 1778274029354,
+      "type": "file"
+    },
+    {
+      "path": "app/api/session/[sessionId]/approve-storyboard/route.ts",
+      "accessCount": 1,
+      "lastAccessed": 1778274437820,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

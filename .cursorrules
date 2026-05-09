@@ -1,0 +1,109 @@
+# Cursor Rules — Podcast-to-Video Generator
+
+## Read These First
+
+Before writing any code, read both files in full:
+- `CLAUDE.md` — tech stack, interfaces, API details, coding conventions
+- `plan.md` — full implementation plan organized by phase
+- `DESIGN.md` - design system
+## What We're Building
+
+A Next.js 14 (App Router) full-stack web app. Users upload podcast audio, Claude detects viral-worthy moments, RunwayML (seedance2) generates B-roll visuals, Remotion animates captions, and users download short-form vertical MP4s (TikTok/Reels/Shorts) — all through the browser. No CLI.
+
+## How to Execute
+
+Work through `plan.md` **one phase at a time**, in order:
+
+1. Phase 1 — Foundation (types, session, utils, Next.js scaffold)
+2. Phase 2 — Upload page + API
+3. Phase 3 — Session dashboard + SSE stream
+4. Phase 4 — Gate 1: Moment approval UI
+5. Phase 5 — Pipeline modules (ingestion → transcription → detection → scene plan → audio extract → image gen → video gen → Remotion → assemble)
+6. Phase 6 — Orchestrator (wires all modules)
+7. Phase 7 — Generation UI (SceneGrid live updates)
+8. Phase 8 — Render + Download APIs + DownloadPanel
+
+**Do not skip phases.** Each phase builds on the previous one.
+
+## Coding Rules
+
+- TypeScript strict mode — no `any`, no `!` non-null assertions without a comment explaining why
+- All external API calls (RunwayML, OpenAI, Anthropic) must go through `lib/utils/retry.ts`
+- All file paths must go through `lib/utils/file-utils.ts` — never hardcode `temp/` paths inline
+- No `console.log` — use the Winston logger from `lib/logger.ts`
+- Validate all LLM (Claude) JSON responses with Zod before using them
+- Never log full API keys — truncate to first 8 chars if needed
+- Comments only when behavior is non-obvious (retry logic, boundary stitching, SSE polling interval)
+
+## Key Architecture Decisions (do not change these)
+
+- **Pipeline runs in the background** after upload — API returns `{ sessionId }` immediately
+- **SSE** (Server-Sent Events) drives all real-time UI updates — no WebSocket, no polling from frontend
+- **Session state** lives entirely in `temp/sessions/{sessionId}/session.json` — no database
+- **Two user approval gates**: Gate 1 (after detection, before RunwayML spend) and Gate 2 (after clips ready, before Remotion render)
+- **RunwayML model**: `seedance2` by default — configurable via session config
+- **Output format**: 1080×1920 vertical (TikTok/Reels/Shorts) — configurable to landscape
+
+## RunwayML API
+
+Base URL: `https://api.dev.runwayml.com`
+Required header: `X-Runway-Version: 2024-11-06`
+Auth: `Authorization: Bearer ${process.env.RUNWAY_API_KEY}`
+
+```
+POST /v1/text_to_image   → { id: jobId }
+POST /v1/image_to_video  → { id: jobId }
+GET  /v1/tasks/{jobId}   → { status: "PENDING"|"RUNNING"|"SUCCEEDED"|"FAILED", output: [url] }
+```
+
+Poll every 10 seconds. Max 60 attempts. On SUCCEEDED, download `output[0]`.
+
+## Error Handling Pattern
+
+```typescript
+// In lib/utils/retry.ts:
+class PermanentError extends Error {}  // do NOT retry
+class RetryableError extends Error {}  // retry with backoff
+
+// Every RunwayML / OpenAI / Anthropic call must be wrapped:
+const result = await retry(async () => { ... }, { maxAttempts: 5, delayMs: 10_000, backoff: 'exponential' });
+```
+
+RunwayML 429 → reduce p-queue concurrency to 1.
+RunwayML FAILED → retry once with simplified prompt → fallback to FFmpeg Ken Burns zoom.
+Claude bad JSON → retry up to 3× with "Return ONLY valid JSON, no markdown" appended.
+
+## File Structure for New Files
+
+Always match the structure in `CLAUDE.md`. Key directories:
+- `app/` — Next.js routes and pages
+- `app/api/` — Route handlers
+- `components/` — React components (upload/, session/, ui/)
+- `lib/` — Server-side logic (modules/, pipeline/, utils/)
+- `temp/sessions/{sessionId}/` — Runtime state (gitignored)
+
+## When Implementing a Module
+
+For each `lib/modules/{name}/` module:
+1. Create `index.ts` with the main exported function(s)
+2. Match the exact function signatures from `plan.md`
+3. Emit SSE events via `appendEvent()` after meaningful progress (not per-item in a tight loop)
+4. Save checkpoints after completing expensive steps (Whisper, Claude, RunwayML)
+5. Check for existing checkpoint before starting — skip if found (resume support)
+
+## Environment Variables
+
+Available in `process.env`:
+- `RUNWAY_API_KEY` — already set
+- `OPENAI_API_KEY` — for Whisper
+- `ANTHROPIC_API_KEY` — for Claude
+
+## Starting Point
+
+If starting fresh, begin with:
+```
+"Implement Phase 1 from plan.md: scaffold the Next.js project, create lib/types.ts, lib/session.ts, and lib/utils/ as described."
+```
+
+Then continue phase by phase.
+

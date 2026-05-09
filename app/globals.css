@@ -1,0 +1,19 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-eggshell: #fdfcfc;
+  --color-powder: #f5f3f1;
+  --color-chalk: #e5e5e5;
+  --color-gravel: #777169;
+  --color-slate: #a59f97;
+  --color-obsidian: #000000;
+}
+
+body {
+  background-color: #fdfcfc;
+  color: #000000;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
