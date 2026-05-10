@@ -34,7 +34,10 @@ ffmpeg.setFfprobePath(ffprobeStatic.path);
 const RUNWAY_BASE_URL = 'https://api.dev.runwayml.com';
 const RUNWAY_VERSION = '2024-11-06';
 const POLL_INTERVAL_MS = 10_000;
-const MAX_POLL_ATTEMPTS = 60;
+// video_to_video (esp. gen4_aleph + seedance2 with reference audio) regularly
+// spends time queued/throttled before running. Cap at 20 minutes total so a
+// single slow refinement doesn't fail a session.
+const MAX_POLL_ATTEMPTS = 120;
 
 interface RunwayUploadSlotResponse {
   uploadUrl: string;
