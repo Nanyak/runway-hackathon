@@ -33,6 +33,7 @@ function MomentStoryboardCard({
   onApproved,
 }: MomentStoryboardCardProps) {
   const variantCount = storyboard.sheetVariantCount ?? 1;
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [readyVariants, setReadyVariants] = useState<Set<number>>(() => {
     // Mark index 0 as ready if storyboard already has an imagePath (resume case)
     const initial = new Set<number>();
@@ -193,7 +194,7 @@ function MomentStoryboardCard({
                       src={sheetUrl}
                       alt={`Storyboard variant ${i + 1}`}
                       className={`w-full object-contain transition-opacity ${regenerating && isSelected ? 'opacity-50' : 'opacity-100'}`}
-                      style={{ maxHeight: 320 }}
+                      style={{ maxHeight: 280 }}
                     />
                     {/* Selected badge */}
                     {isSelected && (
@@ -205,6 +206,17 @@ function MomentStoryboardCard({
                     <div className="absolute bottom-1.5 left-1.5 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded-full">
                       {i + 1}
                     </div>
+                    {/* Zoom / preview button */}
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setLightboxUrl(sheetUrl); }}
+                      className="absolute bottom-1.5 right-1.5 bg-black/50 hover:bg-black/80 text-white rounded-full p-1 transition-colors"
+                      title="Preview full storyboard"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <path d="M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
                   </>
                 ) : (
                   <div className="flex flex-col items-center justify-center gap-2 py-10">
@@ -223,6 +235,38 @@ function MomentStoryboardCard({
           </p>
         )}
       </div>
+
+      {/* Lightbox modal */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <div
+            className="relative max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto rounded-[14px] bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#f0eeec]">
+              <p className="text-sm font-medium text-black">Storyboard Preview</p>
+              <button
+                type="button"
+                onClick={() => setLightboxUrl(null)}
+                className="text-[#a59f97] hover:text-black transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={lightboxUrl}
+              alt="Storyboard full preview"
+              className="w-full h-auto"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Feedback + actions */}
       {!approved && (
