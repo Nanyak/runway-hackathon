@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { getSession, updateSession } from '@/lib/session';
+import { getSession, updateSession, conditionalUpdateSession } from '@/lib/session';
 import { storyboardPath } from '@/lib/utils/file-utils';
 import { readJsonFile, atomicWriteJson } from '@/lib/utils/file-utils';
 import type { StoryboardPlan } from '@/lib/types';
@@ -55,12 +55,31 @@ export async function POST(
     // If all approved moments now have storyboard approval, transition to generating_video
     const allApproved = approvedIds.every((id) => updatedApprovals[id] === true);
 
-    await updateSession(sessionId, {
-      storyboardApprovals: updatedApprovals,
-      // Orchestrator picks up 'generating_video' transition via waitForStoryboardApprovals polling
-    });
+    await updateSession(sessionId, { storyboardApprovals: updatedApprovals });
 
     logger.info('Storyboard approved', { sessionId, momentId, allApproved, selectedSheetIndex });
+
+    if (allApproved) {
+      // Race the pipeline's waitForStoryboardApprovals loop for the status transition.
+      // Exactly one wins (mutex-protected); the other stands down.
+      // If the container was restarted the pipeline loop is gone, so we must resume here.
+      const { updated: claimedVideoGen } = await conditionalUpdateSession(
+        sessionId,
+        (s) => s.status === 'awaiting_storyboard_review',
+        { status: 'generating_video' }
+      );
+
+      if (claimedVideoGen) {
+        logger.info('Approve route claimed video generation (post-restart resume)', { sessionId });
+        void import('@/lib/pipeline/orchestrator')
+          .then(({ resumeFromVideoGeneration }) => resumeFromVideoGeneration(sessionId))
+          .catch((err: unknown) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            logger.error('Failed to resume pipeline from approve-storyboard route', { sessionId, error: msg });
+          });
+      }
+    }
+
     return Response.json({ ok: true, allApproved });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

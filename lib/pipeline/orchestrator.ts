@@ -1,6 +1,6 @@
 import pLimit from 'p-limit';
 import { Moment, StoryboardPlan } from '@/lib/types';
-import { getSession, updateSession, appendEvent, saveCheckpoint, loadCheckpoint } from '@/lib/session';
+import { getSession, updateSession, appendEvent, saveCheckpoint, loadCheckpoint, conditionalUpdateSession } from '@/lib/session';
 import { updateSessionStatus } from '@/lib/db';
 import {
   audioPath,
@@ -351,80 +351,148 @@ export async function runPipeline(sessionId: string): Promise<void> {
     await waitForStoryboardApprovals(sessionId, approvedMoments.map((m) => m.id));
     logger.info('All storyboards approved', { sessionId });
 
-    // ── Step 6: Generate videos ───────────────────────────────────────────
-    await updateSession(sessionId, { status: 'generating_video' });
-    await appendEvent(sessionId, {
-      type: 'progress',
-      timestamp: new Date().toISOString(),
-      data: { step: 'generate', message: 'Generating videos…', pct: 70 },
-    });
-
-    const videoLimit = pLimit(2);
-
-    await Promise.all(
-      approvedMoments.map((moment) =>
-        videoLimit(async () => {
-          try {
-            if (await videoExists(sessionId, moment.id)) {
-              logger.info('Video already exists, skipping', { momentId: moment.id });
-              await appendEvent(sessionId, {
-                type: 'video_ready',
-                timestamp: new Date().toISOString(),
-                data: { momentId: moment.id, videoUrl: `/api/session/${sessionId}/video/${moment.id}` },
-              });
-              return;
-            }
-
-            // Load the latest storyboard from disk (may have been updated by refine-storyboard)
-            const storyboard = await readJsonFile<StoryboardPlan>(storyboardPath(sessionId, moment.id));
-            if (!storyboard) {
-              logger.error('No storyboard found for moment', { momentId: moment.id });
-              return;
-            }
-
-            const durationSec = moment.endSec - moment.startSec;
-            await generateVideoFromStoryboard(storyboard, moment.id, sessionId, approvedSession.config, durationSec);
-
-            await appendEvent(sessionId, {
-              type: 'video_ready',
-              timestamp: new Date().toISOString(),
-              data: { momentId: moment.id, videoUrl: `/api/session/${sessionId}/video/${moment.id}` },
-            });
-
-            logger.info('Moment video ready', { momentId: moment.id });
-          } catch (videoErr) {
-            // Per-moment failure (e.g. content moderation) — surface as a retryable event
-            // without crashing the entire pipeline so other moments can still complete.
-            const msg = videoErr instanceof Error ? videoErr.message : String(videoErr);
-            logger.error('Video generation failed for moment', { momentId: moment.id, error: msg });
-            await appendEvent(sessionId, {
-              type: 'video_error',
-              timestamp: new Date().toISOString(),
-              data: { momentId: moment.id, message: msg },
-            });
-            const current = await getSession(sessionId);
-            await updateSession(sessionId, {
-              momentVideoErrors: { ...(current?.momentVideoErrors ?? {}), [moment.id]: msg },
-            });
-          }
-        })
-      )
+    // ── Step 6: Claim video generation phase (atomic) ─────────────────────
+    // The approve-storyboard route performs the same conditional update when the user
+    // approves the last storyboard. Exactly one of them wins; the other stands down.
+    // This handles post-restart scenarios where this pipeline loop was killed by a
+    // container restart and the approve route needs to resume video generation.
+    const { updated: claimedVideoGen } = await conditionalUpdateSession(
+      sessionId,
+      (s) => s.status === 'awaiting_storyboard_review',
+      { status: 'generating_video' }
     );
 
-    // ── Done — hand off to per-moment feedback loop ───────────────────────
-    await updateSession(sessionId, { status: 'awaiting_feedback' });
-    void updateSessionStatus(sessionId, 'complete');
-    await appendEvent(sessionId, {
-      type: 'complete',
-      timestamp: new Date().toISOString(),
-      data: { message: 'Videos ready — refine or finalize each moment' },
-    });
+    if (!claimedVideoGen) {
+      // The approve-storyboard route already claimed video generation (post-restart resume).
+      // It will call resumeFromVideoGeneration(); nothing left for us to do here.
+      logger.info('Video generation already claimed by approve-storyboard route; pipeline done', { sessionId });
+      void metadata;
+      return;
+    }
+
+    await runVideoGenerationPhase(sessionId, approvedMoments, approvedSession.config);
 
     logger.info('Pipeline complete', { sessionId });
     void metadata;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.error('Pipeline error', { sessionId, error: msg });
+    void updateSessionStatus(sessionId, 'error');
+    await updateSession(sessionId, { status: 'error', error: msg }).catch(() => undefined);
+    await appendEvent(sessionId, {
+      type: 'error',
+      timestamp: new Date().toISOString(),
+      data: { message: msg },
+    }).catch(() => undefined);
+  }
+}
+
+// ─── Video generation phase (Step 6+) ─────────────────────────────────────────
+// Called by runPipeline (normal flow) and resumeFromVideoGeneration (post-restart).
+// Caller must have already set session.status to 'generating_video'.
+
+async function runVideoGenerationPhase(
+  sessionId: string,
+  approvedMoments: Moment[],
+  config: import('@/lib/types').SessionConfig
+): Promise<void> {
+  await appendEvent(sessionId, {
+    type: 'progress',
+    timestamp: new Date().toISOString(),
+    data: { step: 'generate', message: 'Generating videos…', pct: 70 },
+  });
+
+  const videoLimit = pLimit(2);
+
+  await Promise.all(
+    approvedMoments.map((moment) =>
+      videoLimit(async () => {
+        try {
+          if (await videoExists(sessionId, moment.id)) {
+            logger.info('Video already exists, skipping', { momentId: moment.id });
+            await appendEvent(sessionId, {
+              type: 'video_ready',
+              timestamp: new Date().toISOString(),
+              data: { momentId: moment.id, videoUrl: `/api/session/${sessionId}/video/${moment.id}` },
+            });
+            return;
+          }
+
+          // Load the latest storyboard from disk (may have been updated by refine-storyboard)
+          const storyboard = await readJsonFile<StoryboardPlan>(storyboardPath(sessionId, moment.id));
+          if (!storyboard) {
+            logger.error('No storyboard found for moment', { momentId: moment.id });
+            return;
+          }
+
+          const durationSec = moment.endSec - moment.startSec;
+          await generateVideoFromStoryboard(storyboard, moment.id, sessionId, config, durationSec);
+
+          await appendEvent(sessionId, {
+            type: 'video_ready',
+            timestamp: new Date().toISOString(),
+            data: { momentId: moment.id, videoUrl: `/api/session/${sessionId}/video/${moment.id}` },
+          });
+
+          logger.info('Moment video ready', { momentId: moment.id });
+        } catch (videoErr) {
+          // Per-moment failure (e.g. content moderation) — surface as a retryable event
+          // without crashing the entire pipeline so other moments can still complete.
+          const msg = videoErr instanceof Error ? videoErr.message : String(videoErr);
+          logger.error('Video generation failed for moment', { momentId: moment.id, error: msg });
+          await appendEvent(sessionId, {
+            type: 'video_error',
+            timestamp: new Date().toISOString(),
+            data: { momentId: moment.id, message: msg },
+          });
+          const current = await getSession(sessionId);
+          await updateSession(sessionId, {
+            momentVideoErrors: { ...(current?.momentVideoErrors ?? {}), [moment.id]: msg },
+          });
+        }
+      })
+    )
+  );
+
+  // ── Done — hand off to per-moment feedback loop ──────────────────────────
+  await updateSession(sessionId, { status: 'awaiting_feedback' });
+  void updateSessionStatus(sessionId, 'complete');
+  await appendEvent(sessionId, {
+    type: 'complete',
+    timestamp: new Date().toISOString(),
+    data: { message: 'Videos ready — refine or finalize each moment' },
+  });
+}
+
+/**
+ * Resumes pipeline execution from the video generation phase.
+ *
+ * Called by the approve-storyboard route when a post-restart storyboard approval
+ * wins the atomic status claim (status: awaiting_storyboard_review → generating_video).
+ * The caller is responsible for having already updated session status to 'generating_video'
+ * via conditionalUpdateSession before invoking this function.
+ */
+export async function resumeFromVideoGeneration(sessionId: string): Promise<void> {
+  try {
+    logger.info('Resuming pipeline from video generation phase', { sessionId });
+
+    const session = await getSession(sessionId);
+    if (!session) throw new Error(`Session ${sessionId} not found`);
+
+    const approvedIds = session.approvedMomentIds ?? [];
+    const moments = session.moments ?? [];
+    const approvedMoments = moments.filter((m) => approvedIds.includes(m.id));
+
+    if (approvedMoments.length === 0) {
+      throw new Error('No approved moments found in session — cannot resume video generation');
+    }
+
+    await runVideoGenerationPhase(sessionId, approvedMoments, session.config);
+
+    logger.info('Pipeline resumed and complete', { sessionId });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error('Pipeline resume error', { sessionId, error: msg });
     void updateSessionStatus(sessionId, 'error');
     await updateSession(sessionId, { status: 'error', error: msg }).catch(() => undefined);
     await appendEvent(sessionId, {

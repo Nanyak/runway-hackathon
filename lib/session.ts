@@ -55,6 +55,30 @@ export async function updateSession(id: string, patch: Partial<Session>): Promis
   });
 }
 
+/**
+ * Atomically updates a session only when the predicate returns true.
+ * Uses the per-session mutex to guarantee exactly-once semantics across concurrent
+ * callers within the same process (e.g. pipeline vs. approve-storyboard route).
+ * Returns { updated: true } if the predicate matched and the patch was applied,
+ * { updated: false } if the predicate did not match (no write performed).
+ */
+export async function conditionalUpdateSession(
+  id: string,
+  predicate: (session: Session) => boolean,
+  patch: Partial<Session>
+): Promise<{ updated: boolean; session: Session }> {
+  const filePath = sessionFilePath(id);
+  return getMutex(id).runExclusive(async () => {
+    const session = await readJsonFile<Session>(filePath);
+    if (!session) throw new Error(`Session ${id} not found`);
+    if (!predicate(session)) return { updated: false, session };
+    const updated: Session = { ...session, ...patch, id };
+    await atomicWriteJson(filePath, updated);
+    logger.debug('Session conditionally updated', { sessionId: id, keys: Object.keys(patch) });
+    return { updated: true, session: updated };
+  });
+}
+
 export async function appendEvent(
   id: string,
   event: Omit<PipelineEvent, 'id'>
