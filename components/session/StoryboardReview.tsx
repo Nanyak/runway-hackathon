@@ -21,6 +21,7 @@ interface MomentStoryboardCardProps {
   storyboard: StoryboardPlan;
   events: PipelineEvent[];
   iterationsUsed: number;
+  orientation: 'vertical' | 'landscape';
   onApproved: () => void;
 }
 
@@ -30,6 +31,7 @@ function MomentStoryboardCard({
   storyboard,
   events,
   iterationsUsed,
+  orientation,
   onApproved,
 }: MomentStoryboardCardProps) {
   const variantCount = storyboard.sheetVariantCount ?? 1;
@@ -194,7 +196,7 @@ function MomentStoryboardCard({
                       src={sheetUrl}
                       alt={`Storyboard variant ${i + 1}`}
                       className={`w-full object-contain transition-opacity ${regenerating && isSelected ? 'opacity-50' : 'opacity-100'}`}
-                      style={{ maxHeight: 280 }}
+                      style={{ maxHeight: orientation === 'vertical' ? 340 : 200 }}
                     />
                     {/* Selected badge */}
                     {isSelected && (
@@ -239,15 +241,25 @@ function MomentStoryboardCard({
       {/* Lightbox modal */}
       {lightboxUrl && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
           onClick={() => setLightboxUrl(null)}
         >
           <div
-            className="relative max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto rounded-[14px] bg-white shadow-2xl"
+            className={`relative flex flex-col bg-white rounded-[14px] shadow-2xl overflow-hidden
+              ${orientation === 'vertical'
+                ? 'w-auto max-h-[92vh]'
+                : 'w-full max-w-4xl max-h-[92vh]'
+              }
+            `}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-[#f0eeec]">
-              <p className="text-sm font-medium text-black">Storyboard Preview</p>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#f0eeec] flex-shrink-0">
+              <p className="text-sm font-medium text-black">
+                Storyboard Preview
+                <span className="ml-2 text-xs text-[#a59f97] font-normal">
+                  {orientation === 'vertical' ? '9:16 vertical' : '16:9 landscape'}
+                </span>
+              </p>
               <button
                 type="button"
                 onClick={() => setLightboxUrl(null)}
@@ -258,12 +270,14 @@ function MomentStoryboardCard({
                 </svg>
               </button>
             </div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={lightboxUrl}
-              alt="Storyboard full preview"
-              className="w-full h-auto"
-            />
+            <div className="overflow-y-auto">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={lightboxUrl}
+                alt="Storyboard full preview"
+                className={orientation === 'vertical' ? 'h-full w-auto max-h-[80vh]' : 'w-full h-auto'}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -392,6 +406,7 @@ export default function StoryboardReview({
               storyboard={storyboard}
               events={events}
               iterationsUsed={storyboardIterations[moment.id] ?? 0}
+              orientation={orientation}
               onApproved={() => handleMomentApproved(moment.id)}
             />
           );
