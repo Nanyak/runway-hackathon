@@ -192,7 +192,8 @@ function MomentStoryboardCard({
                     <img
                       src={sheetUrl}
                       alt={`Storyboard variant ${i + 1}`}
-                      className={`w-full h-auto object-contain transition-opacity ${regenerating && isSelected ? 'opacity-50' : 'opacity-100'}`}
+                      className={`w-full object-contain transition-opacity ${regenerating && isSelected ? 'opacity-50' : 'opacity-100'}`}
+                      style={{ maxHeight: 320 }}
                     />
                     {/* Selected badge */}
                     {isSelected && (
