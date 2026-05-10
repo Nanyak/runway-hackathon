@@ -397,7 +397,7 @@ export async function runPipeline(sessionId: string): Promise<void> {
 
     // ── Done — hand off to per-moment feedback loop ───────────────────────
     await updateSession(sessionId, { status: 'awaiting_feedback' });
-    updateSessionStatus(sessionId, 'complete');
+    void updateSessionStatus(sessionId, 'complete');
     await appendEvent(sessionId, {
       type: 'complete',
       timestamp: new Date().toISOString(),
@@ -409,7 +409,7 @@ export async function runPipeline(sessionId: string): Promise<void> {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.error('Pipeline error', { sessionId, error: msg });
-    updateSessionStatus(sessionId, 'error');
+    void updateSessionStatus(sessionId, 'error');
     await updateSession(sessionId, { status: 'error', error: msg }).catch(() => undefined);
     await appendEvent(sessionId, {
       type: 'error',

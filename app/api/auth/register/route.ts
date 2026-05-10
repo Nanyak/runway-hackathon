@@ -18,7 +18,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
 
     const { email, name, password } = parsed.data;
-    const user = createUser(email.toLowerCase().trim(), name.trim(), password);
+    const user = await createUser(email.toLowerCase().trim(), name.trim(), password);
     logger.info('User registered', { userId: user.id });
 
     return Response.json({ ok: true });

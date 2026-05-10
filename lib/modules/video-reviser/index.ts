@@ -12,6 +12,7 @@ import {
   downloadFile,
   atomicWriteJson,
   readJsonFile,
+  ensureLocalFile,
 } from '@/lib/utils/file-utils';
 import { retry, RetryableError, PermanentError, sleep } from '@/lib/utils/retry';
 import {
@@ -305,7 +306,10 @@ async function runRevisionGeneration(
 
     const destPath = revisionPath(sessionId, momentId, revisionId);
 
-    // 1. Upload source video to Runway
+    // 1. Ensure source video is local (may need to pull from S3 after a redeploy)
+    await ensureLocalFile(sourcePath);
+
+    // 2. Upload source video to Runway
     const runwayUri = await uploadVideoToRunway(sourcePath);
 
     // 2. Submit video_to_video

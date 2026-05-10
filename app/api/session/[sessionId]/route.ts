@@ -31,7 +31,7 @@ export async function GET(
     const userId = (authSession?.user as { id?: string } | undefined)?.id ?? '';
     let listMeta: { displayName: string | null } | undefined;
     if (userId) {
-      const rec = getSessionRecordByFileId(sessionId);
+      const rec = await getSessionRecordByFileId(sessionId);
       if (rec && rec.user_id === userId) {
         const dn = rec.display_name?.trim();
         listMeta = { displayName: dn ? dn : null };
@@ -65,12 +65,12 @@ export async function PATCH(
       return Response.json({ error: 'Invalid body', details: parsed.error.flatten() }, { status: 400 });
     }
 
-    const rec = getSessionRecordByFileId(sessionId);
+    const rec = await getSessionRecordByFileId(sessionId);
     if (!rec || rec.user_id !== userId) {
       return Response.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    const ok = updateSessionDisplayName(userId, sessionId, parsed.data.displayName);
+    const ok = await updateSessionDisplayName(userId, sessionId, parsed.data.displayName);
     if (!ok) {
       return Response.json({ error: 'Session not found' }, { status: 404 });
     }
@@ -99,13 +99,13 @@ export async function DELETE(
     }
     const userId = (authSession.user as { id?: string }).id ?? '';
 
-    const rec = getSessionRecordByFileId(sessionId);
+    const rec = await getSessionRecordByFileId(sessionId);
     if (!rec || rec.user_id !== userId) {
       return Response.json({ error: 'Session not found' }, { status: 404 });
     }
 
     await removeSessionDir(sessionId);
-    deleteUserSessionByFileId(userId, sessionId);
+    await deleteUserSessionByFileId(userId, sessionId);
 
     logger.info('Session deleted by user', { sessionId, userId });
     return Response.json({ ok: true });

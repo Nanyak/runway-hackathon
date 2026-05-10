@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import fs from 'fs';
-import { revisionPath } from '@/lib/utils/file-utils';
+import { revisionPath, ensureLocalFile } from '@/lib/utils/file-utils';
 import logger from '@/lib/logger';
 
 interface RouteParams {
@@ -13,6 +13,7 @@ export async function GET(req: NextRequest, { params }: RouteParams): Promise<Re
   const filePath = revisionPath(sessionId, momentId, revisionId);
 
   try {
+    if (!fs.existsSync(filePath)) await ensureLocalFile(filePath);
     const stat = fs.statSync(filePath);
     const fileSize = stat.size;
     const rangeHeader = req.headers.get('range');

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import fs from 'fs';
-import { momentVideoPath } from '@/lib/utils/file-utils';
+import { momentVideoPath, ensureLocalFile } from '@/lib/utils/file-utils';
 
 export async function GET(
   req: NextRequest,
@@ -10,7 +10,8 @@ export async function GET(
   const filePath = momentVideoPath(sessionId, momentId);
 
   if (!fs.existsSync(filePath)) {
-    return new Response('Video not found', { status: 404 });
+    const pulled = await ensureLocalFile(filePath);
+    if (!pulled) return new Response('Video not found', { status: 404 });
   }
 
   const stat = fs.statSync(filePath);

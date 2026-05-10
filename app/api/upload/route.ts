@@ -101,7 +101,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     const session = await createSession(config, audioFilePath);
 
     // Record in SQLite for history
-    createSessionRecord(userId, session.id, {
+    await createSessionRecord(userId, session.id, {
       title: 'Untitled podcast',
       speakerName: config.speakerName,
       showName: config.showName,

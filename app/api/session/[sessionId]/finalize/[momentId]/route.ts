@@ -1,7 +1,7 @@
 import path from 'path';
 import { NextRequest } from 'next/server';
 import { getSession, appendEvent } from '@/lib/session';
-import { momentVideoPath, finalPath, ensureDir, revisionPath } from '@/lib/utils/file-utils';
+import { momentVideoPath, finalPath, ensureDir, revisionPath, ensureLocalFile, syncLocalFileToS3 } from '@/lib/utils/file-utils';
 import { loadRevisions } from '@/lib/modules/video-reviser';
 import logger from '@/lib/logger';
 import fs from 'fs/promises';
@@ -54,9 +54,8 @@ export async function POST(
       sourceVideoPath = revisionPath(sessionId, momentId, requestedRevisionId);
     }
 
-    try {
-      await fs.stat(sourceVideoPath);
-    } catch {
+    const available = await ensureLocalFile(sourceVideoPath);
+    if (!available) {
       return Response.json({ error: 'Selected video file is not available' }, { status: 404 });
     }
 
@@ -67,6 +66,7 @@ export async function POST(
       try {
         await ensureDir(path.dirname(outFinalPath));
         await fs.copyFile(sourceVideoPath, outFinalPath);
+        void syncLocalFileToS3(outFinalPath);
 
         await appendEvent(sessionId, {
           type: 'render_complete',

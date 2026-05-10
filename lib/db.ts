@@ -1,33 +1,39 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
+import { Pool } from 'pg';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import logger from './logger';
-import { dbDirPath } from './utils/persistent-root';
 
-const DB_DIR = dbDirPath();
-const DB_PATH = path.join(DB_DIR, 'app.db');
+let _pool: Pool | null = null;
 
-let _db: Database.Database | null = null;
+function getPool(): Pool {
+  if (!_pool) {
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) throw new Error('DATABASE_URL is not set');
+    _pool = new Pool({
+      connectionString,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+      max: 10,
+    });
+  }
+  return _pool;
+}
 
-export function getDb(): Database.Database {
-  if (_db) return _db;
+let _initPromise: Promise<void> | null = null;
 
-  fs.mkdirSync(DB_DIR, { recursive: true });
-  _db = new Database(DB_PATH);
-  _db.pragma('journal_mode = WAL');
-  _db.pragma('foreign_keys = ON');
+async function initDb(): Promise<void> {
+  const pool = getPool();
 
-  _db.exec(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
       password_hash TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
 
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS user_sessions (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -36,44 +42,42 @@ export function getDb(): Database.Database {
       status TEXT NOT NULL DEFAULT 'uploading',
       speaker_name TEXT NOT NULL DEFAULT '',
       show_name TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
-    CREATE INDEX IF NOT EXISTS idx_user_sessions_status ON user_sessions(status);
+      display_name TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
   `);
 
-  migrateUserSessionsSchema(_db);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_sessions_status ON user_sessions(status)`);
 
-  seedDemoUser(_db);
-  logger.info('Database initialised', { path: DB_PATH });
-  return _db;
+  await seedDemoUser(pool);
+  logger.info('Database initialised (PostgreSQL)');
 }
 
-function migrateUserSessionsSchema(db: Database.Database): void {
-  const cols = db.prepare(`PRAGMA table_info(user_sessions)`).all() as { name: string }[];
-  if (!cols.some((c) => c.name === 'display_name')) {
-    db.exec(`ALTER TABLE user_sessions ADD COLUMN display_name TEXT`);
-    logger.info('Migration: user_sessions.display_name added');
+function ensureInit(): Promise<void> {
+  if (!_initPromise) {
+    _initPromise = initDb().catch((err) => {
+      _initPromise = null;
+      throw err;
+    });
   }
+  return _initPromise;
 }
 
-function seedDemoUser(db: Database.Database): void {
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get('demo@example.com');
-  if (!existing) {
-    const hash = bcrypt.hashSync('password123', 10);
-    db.prepare('INSERT INTO users (id, email, name, password_hash) VALUES (?, ?, ?, ?)').run(
-      uuidv4(),
-      'demo@example.com',
-      'Demo User',
-      hash
+async function seedDemoUser(pool: Pool): Promise<void> {
+  const result = await pool.query('SELECT id FROM users WHERE email = $1', ['demo@example.com']);
+  if (result.rows.length === 0) {
+    const hash = await bcrypt.hash('password123', 10);
+    await pool.query(
+      'INSERT INTO users (id, email, name, password_hash) VALUES ($1, $2, $3, $4)',
+      [uuidv4(), 'demo@example.com', 'Demo User', hash]
     );
     logger.info('Demo user seeded');
   }
 }
 
-// ── User helpers ────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface DbUser {
   id: string;
@@ -83,39 +87,11 @@ export interface DbUser {
   created_at: string;
 }
 
-export function findUserByEmail(email: string): DbUser | null {
-  const db = getDb();
-  return (db.prepare('SELECT * FROM users WHERE email = ?').get(email) as DbUser) ?? null;
-}
-
-export function findUserById(id: string): DbUser | null {
-  const db = getDb();
-  return (db.prepare('SELECT * FROM users WHERE id = ?').get(id) as DbUser) ?? null;
-}
-
-export function createUser(email: string, name: string, password: string): DbUser {
-  const db = getDb();
-  const existing = findUserByEmail(email);
-  if (existing) throw new Error('Email already registered');
-
-  const id = uuidv4();
-  const password_hash = bcrypt.hashSync(password, 10);
-  db.prepare('INSERT INTO users (id, email, name, password_hash) VALUES (?, ?, ?, ?)').run(
-    id, email, name, password_hash
-  );
-  const created = findUserById(id);
-  if (!created) throw new Error('User creation failed unexpectedly');
-  return created;
-}
-
-// ── Session record helpers ───────────────────────────────────────────────────
-
 export interface DbSession {
   id: string;
   user_id: string;
   session_file_id: string;
   title: string;
-  /** Optional label shown in history / session header instead of show/speaker/title. */
   display_name?: string | null;
   status: string;
   speaker_name: string;
@@ -124,47 +100,84 @@ export interface DbSession {
   updated_at: string;
 }
 
-export function createSessionRecord(
+// ── User helpers ──────────────────────────────────────────────────────────────
+
+export async function findUserByEmail(email: string): Promise<DbUser | null> {
+  await ensureInit();
+  const result = await getPool().query('SELECT * FROM users WHERE email = $1', [email]);
+  return (result.rows[0] as DbUser) ?? null;
+}
+
+export async function findUserById(id: string): Promise<DbUser | null> {
+  await ensureInit();
+  const result = await getPool().query('SELECT * FROM users WHERE id = $1', [id]);
+  return (result.rows[0] as DbUser) ?? null;
+}
+
+export async function createUser(email: string, name: string, password: string): Promise<DbUser> {
+  await ensureInit();
+  const existing = await findUserByEmail(email);
+  if (existing) throw new Error('Email already registered');
+
+  const id = uuidv4();
+  const password_hash = await bcrypt.hash(password, 10);
+  await getPool().query(
+    'INSERT INTO users (id, email, name, password_hash) VALUES ($1, $2, $3, $4)',
+    [id, email, name, password_hash]
+  );
+  const created = await findUserById(id);
+  if (!created) throw new Error('User creation failed unexpectedly');
+  return created;
+}
+
+// ── Session record helpers ────────────────────────────────────────────────────
+
+export async function createSessionRecord(
   userId: string,
   sessionFileId: string,
   opts: { title?: string; speakerName?: string; showName?: string } = {}
-): DbSession {
-  const db = getDb();
+): Promise<DbSession> {
+  await ensureInit();
   const id = uuidv4();
   const title = opts.title ?? 'Untitled podcast';
   const speakerName = opts.speakerName ?? '';
   const showName = opts.showName ?? '';
 
-  db.prepare(`
-    INSERT INTO user_sessions (id, user_id, session_file_id, title, speaker_name, show_name)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, userId, sessionFileId, title, speakerName, showName);
+  await getPool().query(
+    `INSERT INTO user_sessions (id, user_id, session_file_id, title, speaker_name, show_name)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [id, userId, sessionFileId, title, speakerName, showName]
+  );
 
-  const created = getSessionRecord(id);
+  const created = await getSessionRecord(id);
   if (!created) throw new Error('Session record creation failed unexpectedly');
   return created;
 }
 
-export function getSessionRecord(id: string): DbSession | null {
-  const db = getDb();
-  return (db.prepare('SELECT * FROM user_sessions WHERE id = ?').get(id) as DbSession) ?? null;
+export async function getSessionRecord(id: string): Promise<DbSession | null> {
+  await ensureInit();
+  const result = await getPool().query('SELECT * FROM user_sessions WHERE id = $1', [id]);
+  return (result.rows[0] as DbSession) ?? null;
 }
 
-export function getSessionRecordByFileId(sessionFileId: string): DbSession | null {
-  const db = getDb();
-  return (
-    (db.prepare('SELECT * FROM user_sessions WHERE session_file_id = ?').get(sessionFileId) as DbSession) ?? null
+export async function getSessionRecordByFileId(sessionFileId: string): Promise<DbSession | null> {
+  await ensureInit();
+  const result = await getPool().query(
+    'SELECT * FROM user_sessions WHERE session_file_id = $1',
+    [sessionFileId]
   );
+  return (result.rows[0] as DbSession) ?? null;
 }
 
-export function listUserSessions(userId: string): DbSession[] {
-  const db = getDb();
-  return db
-    .prepare('SELECT * FROM user_sessions WHERE user_id = ? ORDER BY created_at DESC')
-    .all(userId) as DbSession[];
+export async function listUserSessions(userId: string): Promise<DbSession[]> {
+  await ensureInit();
+  const result = await getPool().query(
+    'SELECT * FROM user_sessions WHERE user_id = $1 ORDER BY created_at DESC',
+    [userId]
+  );
+  return result.rows as DbSession[];
 }
 
-/** Card title: custom name wins, then show · speaker, then speaker or DB title. */
 export function formatSessionListLabel(s: DbSession): string {
   const custom = s.display_name?.trim();
   if (custom) return custom;
@@ -174,32 +187,33 @@ export function formatSessionListLabel(s: DbSession): string {
   return s.speaker_name || s.title;
 }
 
-export function updateSessionDisplayName(
+export async function updateSessionDisplayName(
   userId: string,
   sessionFileId: string,
   displayName: string
-): boolean {
-  const db = getDb();
-  const r = db
-    .prepare(
-      `UPDATE user_sessions SET display_name = ?, updated_at = datetime('now')
-       WHERE session_file_id = ? AND user_id = ?`
-    )
-    .run(displayName, sessionFileId, userId);
-  return r.changes > 0;
+): Promise<boolean> {
+  await ensureInit();
+  const result = await getPool().query(
+    `UPDATE user_sessions SET display_name = $1, updated_at = NOW()
+     WHERE session_file_id = $2 AND user_id = $3`,
+    [displayName, sessionFileId, userId]
+  );
+  return (result.rowCount ?? 0) > 0;
 }
 
-export function deleteUserSessionByFileId(userId: string, sessionFileId: string): boolean {
-  const db = getDb();
-  const r = db
-    .prepare(`DELETE FROM user_sessions WHERE session_file_id = ? AND user_id = ?`)
-    .run(sessionFileId, userId);
-  return r.changes > 0;
+export async function deleteUserSessionByFileId(userId: string, sessionFileId: string): Promise<boolean> {
+  await ensureInit();
+  const result = await getPool().query(
+    `DELETE FROM user_sessions WHERE session_file_id = $1 AND user_id = $2`,
+    [sessionFileId, userId]
+  );
+  return (result.rowCount ?? 0) > 0;
 }
 
-export function updateSessionStatus(sessionFileId: string, status: string): void {
-  const db = getDb();
-  db.prepare(`
-    UPDATE user_sessions SET status = ?, updated_at = datetime('now') WHERE session_file_id = ?
-  `).run(status, sessionFileId);
+export async function updateSessionStatus(sessionFileId: string, status: string): Promise<void> {
+  await ensureInit();
+  await getPool().query(
+    `UPDATE user_sessions SET status = $1, updated_at = NOW() WHERE session_file_id = $2`,
+    [status, sessionFileId]
+  );
 }

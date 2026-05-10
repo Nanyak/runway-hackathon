@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import fs from 'fs';
-import { storyboardFrameImagePath, variationImagePath } from '@/lib/utils/file-utils';
+import { storyboardFrameImagePath, variationImagePath, ensureLocalFile } from '@/lib/utils/file-utils';
 
 export async function GET(
   _req: NextRequest,
@@ -11,14 +11,15 @@ export async function GET(
 
   if (isNaN(idx)) return new Response('Invalid index', { status: 400 });
 
-  // Try storyboard frame image first (new flow), then fall back to variation image (legacy)
   const storyboardPath = storyboardFrameImagePath(sessionId, momentId, idx);
   const variationPath = variationImagePath(sessionId, momentId, idx);
 
-  const filePath = fs.existsSync(storyboardPath) ? storyboardPath : variationPath;
+  let filePath = fs.existsSync(storyboardPath) ? storyboardPath : variationPath;
 
   if (!fs.existsSync(filePath)) {
-    return new Response('Image not found', { status: 404 });
+    const pulled = await ensureLocalFile(storyboardPath) || await ensureLocalFile(variationPath);
+    if (!pulled) return new Response('Image not found', { status: 404 });
+    filePath = fs.existsSync(storyboardPath) ? storyboardPath : variationPath;
   }
 
   const buffer = fs.readFileSync(filePath);

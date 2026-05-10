@@ -5,9 +5,31 @@ import http from 'http';
 import { createWriteStream } from 'fs';
 import logger from '../logger';
 import { sessionsRoot } from './persistent-root';
+import { s3PutFile, s3PutJson, s3GetJson, s3GetFile, isS3Enabled } from './storage';
 
 const TEMP_ROOT = sessionsRoot();
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function toS3Key(localPath: string): string {
+  const rel = path.relative(TEMP_ROOT, localPath);
+  return `sessions/${rel}`;
+}
+
+/** Ensures a file is available locally, pulling from S3 if missing. Returns true if available. */
+export async function ensureLocalFile(localPath: string): Promise<boolean> {
+  try {
+    await fs.access(localPath);
+    return true;
+  } catch {
+    if (!isS3Enabled()) return false;
+    return s3GetFile(toS3Key(localPath), localPath);
+  }
+}
+
+/** Uploads a local file to S3 using its derived key. No-op if S3 is not configured. */
+export async function syncLocalFileToS3(localPath: string): Promise<void> {
+  await s3PutFile(toS3Key(localPath), localPath);
+}
 
 function assertSafeId(id: string, label: string): void {
   if (!UUID_RE.test(id)) {
@@ -166,6 +188,8 @@ export async function downloadFile(url: string, dest: string): Promise<void> {
       reject(new Error(`Download timeout for ${url}`));
     });
   });
+
+  await s3PutFile(toS3Key(dest), dest);
 }
 
 export function slugify(s: string): string {
@@ -178,8 +202,10 @@ export function slugify(s: string): string {
 
 export async function atomicWriteJson(filePath: string, data: unknown): Promise<void> {
   const tmp = `${filePath}.tmp`;
+  await ensureDir(path.dirname(filePath));
   await fs.writeFile(tmp, JSON.stringify(data, null, 2), 'utf-8');
   await fs.rename(tmp, filePath);
+  await s3PutJson(toS3Key(filePath), data);
 }
 
 export async function readJsonFile<T>(filePath: string): Promise<T | null> {
@@ -187,7 +213,7 @@ export async function readJsonFile<T>(filePath: string): Promise<T | null> {
     const raw = await fs.readFile(filePath, 'utf-8');
     return JSON.parse(raw) as T;
   } catch {
-    return null;
+    return s3GetJson<T>(toS3Key(filePath));
   }
 }
 

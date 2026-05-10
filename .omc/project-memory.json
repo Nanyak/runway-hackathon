@@ -153,8 +153,8 @@
   "hotPaths": [
     {
       "path": "lib/pipeline/orchestrator.ts",
-      "accessCount": 27,
-      "lastAccessed": 1778366420462,
+      "accessCount": 30,
+      "lastAccessed": 1778371385486,
       "type": "file"
     },
     {
@@ -176,6 +176,30 @@
       "type": "file"
     },
     {
+      "path": "lib/modules/video-generator/runway.ts",
+      "accessCount": 7,
+      "lastAccessed": 1778371389191,
+      "type": "file"
+    },
+    {
+      "path": "lib/utils/file-utils.ts",
+      "accessCount": 7,
+      "lastAccessed": 1778371439688,
+      "type": "file"
+    },
+    {
+      "path": "app/api/session/[sessionId]/finalize/[momentId]/route.ts",
+      "accessCount": 7,
+      "lastAccessed": 1778371448929,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/video-reviser/index.ts",
+      "accessCount": 7,
+      "lastAccessed": 1778371462488,
+      "type": "file"
+    },
+    {
       "path": "lib/types.ts",
       "accessCount": 6,
       "lastAccessed": 1778364247777,
@@ -194,6 +218,12 @@
       "type": "file"
     },
     {
+      "path": "app/api/upload/route.ts",
+      "accessCount": 6,
+      "lastAccessed": 1778371354493,
+      "type": "file"
+    },
+    {
       "path": "scripts/test-e2e.ts",
       "accessCount": 5,
       "lastAccessed": 1778343719977,
@@ -206,21 +236,9 @@
       "type": "file"
     },
     {
-      "path": "lib/modules/video-generator/runway.ts",
-      "accessCount": 4,
-      "lastAccessed": 1778364132723,
-      "type": "file"
-    },
-    {
-      "path": "lib/modules/video-reviser/index.ts",
-      "accessCount": 4,
-      "lastAccessed": 1778364212005,
-      "type": "file"
-    },
-    {
-      "path": "app/api/upload/route.ts",
-      "accessCount": 4,
-      "lastAccessed": 1778364298567,
+      "path": "app/api/session/[sessionId]/route.ts",
+      "accessCount": 5,
+      "lastAccessed": 1778371364862,
       "type": "file"
     },
     {
@@ -254,9 +272,21 @@
       "type": "file"
     },
     {
-      "path": "lib/utils/file-utils.ts",
-      "accessCount": 2,
-      "lastAccessed": 1778363029447,
+      "path": "lib/db.ts",
+      "accessCount": 3,
+      "lastAccessed": 1778371323338,
+      "type": "file"
+    },
+    {
+      "path": "app/api/session/[sessionId]/video/[momentId]/route.ts",
+      "accessCount": 3,
+      "lastAccessed": 1778371402217,
+      "type": "file"
+    },
+    {
+      "path": "app/api/download/[sessionId]/zip/route.ts",
+      "accessCount": 3,
+      "lastAccessed": 1778371458086,
       "type": "file"
     },
     {
@@ -281,6 +311,36 @@
       "path": "components/session/PipelineProgress.tsx",
       "accessCount": 2,
       "lastAccessed": 1778365645102,
+      "type": "file"
+    },
+    {
+      "path": "lib/auth.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778371352282,
+      "type": "file"
+    },
+    {
+      "path": "app/api/auth/register/route.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778371353437,
+      "type": "file"
+    },
+    {
+      "path": "app/api/session/[sessionId]/moments/[momentId]/revision/[revisionId]/route.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778371406016,
+      "type": "file"
+    },
+    {
+      "path": "app/api/session/[sessionId]/variation-image/[momentId]/[index]/route.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778371412520,
+      "type": "file"
+    },
+    {
+      "path": "app/history/page.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1778371483513,
       "type": "file"
     },
     {
@@ -326,27 +386,9 @@
       "type": "file"
     },
     {
-      "path": "app/api/session/[sessionId]/route.ts",
-      "accessCount": 1,
-      "lastAccessed": 1778363690788,
-      "type": "file"
-    },
-    {
       "path": "components/session/MomentCard.tsx",
       "accessCount": 1,
       "lastAccessed": 1778363691145,
-      "type": "file"
-    },
-    {
-      "path": "app/api/session/[sessionId]/video/[momentId]/route.ts",
-      "accessCount": 1,
-      "lastAccessed": 1778363693249,
-      "type": "file"
-    },
-    {
-      "path": "app/api/session/[sessionId]/finalize/[momentId]/route.ts",
-      "accessCount": 1,
-      "lastAccessed": 1778363693637,
       "type": "file"
     },
     {
@@ -377,6 +419,30 @@
       "path": "lib/modules/viral-detector/index.ts",
       "accessCount": 1,
       "lastAccessed": 1778364735999,
+      "type": "file"
+    },
+    {
+      "path": "lib/utils/persistent-root.ts",
+      "accessCount": 1,
+      "lastAccessed": 1778370594498,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/ingestion/index.ts",
+      "accessCount": 1,
+      "lastAccessed": 1778370981358,
+      "type": "file"
+    },
+    {
+      "path": "lib/modules/transcription/whisper.ts",
+      "accessCount": 1,
+      "lastAccessed": 1778370987750,
+      "type": "file"
+    },
+    {
+      "path": "lib/utils/storage.ts",
+      "accessCount": 1,
+      "lastAccessed": 1778371299454,
       "type": "file"
     }
   ],

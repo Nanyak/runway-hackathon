@@ -10,7 +10,7 @@ export default async function HistoryPage() {
   if (!authSession?.user) redirect('/login?callbackUrl=/history');
 
   const userId = (authSession.user as { id?: string }).id ?? '';
-  const sessions = listUserSessions(userId);
+  const sessions = await listUserSessions(userId);
 
   return (
     <main className="min-h-screen bg-[#fdfcfc] px-4 py-12">

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
-import { finalPath } from '@/lib/utils/file-utils';
+import { finalPath, ensureLocalFile } from '@/lib/utils/file-utils';
 import fs from 'fs';
 import archiver from 'archiver';
 import { Readable } from 'stream';
@@ -19,14 +19,12 @@ export async function GET(
   const approvedIds = session.approvedMomentIds ?? [];
   const moments = (session.moments ?? []).filter((m) => approvedIds.includes(m.id));
 
-  const readyMoments = moments.filter((m) => {
-    try {
-      fs.accessSync(finalPath(sessionId, m.id));
-      return true;
-    } catch {
-      return false;
-    }
-  });
+  const readyMoments: typeof moments = [];
+  for (const m of moments) {
+    const fp = finalPath(sessionId, m.id);
+    const available = fs.existsSync(fp) || await ensureLocalFile(fp);
+    if (available) readyMoments.push(m);
+  }
 
   if (readyMoments.length === 0) {
     return new NextResponse('No videos ready', { status: 404 });

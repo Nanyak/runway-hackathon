@@ -117,7 +117,7 @@ async function postToPresignedSlot(
 export async function uploadImageToRunway(imagePath: string): Promise<string> {
   const filename = imagePath.split('/').pop() ?? 'image.png';
   const slot = await createUploadSlot(filename);
-  const fileBuffer = fs.readFileSync(imagePath);
+  const fileBuffer = await fs.promises.readFile(imagePath);
   await postToPresignedSlot(slot, fileBuffer, filename, 'image/png');
   logger.info('Image uploaded to Runway', { uri: slot.runwayUri.slice(0, 30) });
   return slot.runwayUri;
@@ -129,7 +129,7 @@ export async function uploadImageToRunway(imagePath: string): Promise<string> {
 export async function uploadAudioToRunway(audioPath: string): Promise<string> {
   const filename = audioPath.split('/').pop() ?? 'audio.wav';
   const slot = await createUploadSlot(filename);
-  const fileBuffer = fs.readFileSync(audioPath);
+  const fileBuffer = await fs.promises.readFile(audioPath);
   const mime = filename.toLowerCase().endsWith('.mp3') ? 'audio/mpeg' : 'audio/wav';
   await postToPresignedSlot(slot, fileBuffer, filename, mime);
   logger.info('Audio uploaded to Runway', { uri: slot.runwayUri.slice(0, 30) });
