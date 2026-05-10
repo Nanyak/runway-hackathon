@@ -9,6 +9,7 @@ import StoryboardReview from '@/components/session/StoryboardReview';
 import VideoWorkspace from '@/components/session/VideoWorkspace';
 import ThinkingPanel from '@/components/session/ThinkingPanel';
 import SessionActions from '@/components/session/SessionActions';
+import PhaseGuidance from '@/components/session/PhaseGuidance';
 
 // ── Step resolution ────────────────────────────────────────────────────────────
 
@@ -181,6 +182,8 @@ export default function SessionPage() {
         </div>
       </div>
 
+      <PhaseGuidance step={currentStep} status={session.status} />
+
       {/* Step content */}
       <div className="flex-1 overflow-y-auto">
         {/* Step 1 — Analyzing */}
@@ -274,7 +277,10 @@ function StepIndicator({ current, status }: { current: StepIndex; status: Sessio
   const isError = status === 'error';
 
   return (
-    <div className="flex items-center gap-1 flex-1 min-w-0">
+    <nav
+      className="flex items-center gap-1 flex-1 min-w-0"
+      aria-label="Session workflow steps"
+    >
       {STEPS.map((step, idx) => {
         const done = !isError && step.n < current;
         const active = step.n === current;
@@ -315,7 +321,7 @@ function StepIndicator({ current, status }: { current: StepIndex; status: Sessio
           </div>
         );
       })}
-    </div>
+    </nav>
   );
 }
 

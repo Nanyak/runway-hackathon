@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Moment, PipelineEvent, VideoRevision } from '@/lib/types';
+import VideoRevisionThumb from '@/components/session/VideoRevisionThumb';
 
 interface VideoWorkspaceProps {
   moments: Moment[];
@@ -244,36 +245,38 @@ function VideoCard({ moment, sessionId, videoReady, finalized, downloadUrl, vide
           </div>
 
 
-          {/* Version pills */}
-          {revisions.length > 0 && (
-            <div className="mt-3 flex gap-1.5 flex-wrap justify-center">
-              <button
-                type="button"
-                onClick={() => setSelectedVersion('original')}
-                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                  selectedVersion === 'original' ? 'bg-white text-black' : 'bg-white/10 text-white/60 hover:bg-white/20'
-                }`}
-              >
-                v0
-              </button>
-              {revisions.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => r.status === 'ready' && setSelectedVersion(r.id)}
-                  disabled={r.status !== 'ready'}
-                  className={`relative px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                    selectedVersion === r.id ? 'bg-white text-black'
-                    : r.status === 'ready' ? 'bg-white/10 text-white/60 hover:bg-white/20'
-                    : 'bg-white/5 text-white/30 cursor-not-allowed'
-                  }`}
-                >
-                  v{r.id}
-                  {(r.status === 'pending' || r.status === 'generating') && (
-                    <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                  )}
-                </button>
-              ))}
+          {/* Version thumbnails (first frame) */}
+          {(videoReady || revisions.length > 0) && (
+            <div className="mt-3 flex gap-2 overflow-x-auto justify-center max-w-full pb-1 px-1">
+              <VideoRevisionThumb
+                src={videoReady ? rawVideoSrc : null}
+                label="v0"
+                selected={selectedVersion === 'original'}
+                disabled={!videoReady}
+                placeholder={!videoReady}
+                onClick={() => {
+                  if (videoReady) setSelectedVersion('original');
+                }}
+              />
+              {revisions.map((r, i) => {
+                const ready = r.status === 'ready';
+                const revSrc = ready
+                  ? `/api/session/${sessionId}/moments/${moment.id}/revision/${r.id}`
+                  : null;
+                return (
+                  <VideoRevisionThumb
+                    key={r.id}
+                    src={revSrc}
+                    label={`v${i + 1}`}
+                    selected={selectedVersion === r.id}
+                    disabled={!ready}
+                    placeholder={!ready}
+                    onClick={() => {
+                      if (ready) setSelectedVersion(r.id);
+                    }}
+                  />
+                );
+              })}
             </div>
           )}
         </div>

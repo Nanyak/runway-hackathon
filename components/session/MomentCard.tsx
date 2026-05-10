@@ -6,6 +6,17 @@ import Badge from '@/components/ui/Badge';
 import AudioPlayer from '@/components/ui/AudioPlayer';
 import { STYLE_PRESETS, suggestedStyleToPresetId } from '@/lib/config/style-presets';
 
+const MIN_TRIM_CLIP_SEC = 2;
+
+export interface MomentTrimState {
+  startSec: number;
+  endSec: number;
+  boundStartSec: number;
+  boundEndSec: number;
+  onStartChange: (sec: number) => void;
+  onEndChange: (sec: number) => void;
+}
+
 interface MomentCardProps {
   moment: Moment;
   checked: boolean;
@@ -15,6 +26,8 @@ interface MomentCardProps {
   onHookEdit: (text: string) => void;
   onStyleEdit: (text: string) => void;
   audioUrl: string;
+  /** Optional trim within the detected window (applied when you continue). */
+  trim?: MomentTrimState;
 }
 
 const MOOD_COLORS: Record<Moment['mood'], 'green' | 'orange' | 'blue' | 'default'> = {
@@ -40,7 +53,14 @@ export default function MomentCard({
   onHookEdit,
   onStyleEdit,
   audioUrl,
+  trim,
 }: MomentCardProps) {
+  const trimExportSec =
+    trim !== undefined ? Math.round((trim.endSec - trim.startSec) * 10) / 10 : null;
+  const canTrim =
+    trim !== undefined &&
+    trim.boundEndSec - trim.boundStartSec >= MIN_TRIM_CLIP_SEC + 0.05;
+
   return (
     <div
       className={`rounded-[16px] border bg-white p-5 transition-colors ${
@@ -85,6 +105,48 @@ export default function MomentCard({
       <div className="mb-4">
         <AudioPlayer src={audioUrl} duration={moment.endSec - moment.startSec} />
       </div>
+
+      {canTrim && trim !== undefined && (
+        <div className="mb-4 rounded-[12px] border border-[#ebe8e4] bg-[#faf9f8] px-3 py-3 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-black">Clip trim</p>
+            <span className="text-xs text-[#a59f97]">
+              Export ~{trimExportSec}s
+              <span className="block sm:inline sm:ml-1 text-[10px] text-[#a59f97]/90">
+                (preview is the full detected clip; trim applies when you continue)
+              </span>
+            </span>
+          </div>
+          <div className="space-y-2">
+            <label className="block text-[10px] text-[#777169] uppercase tracking-wide">
+              Start ({trim.startSec.toFixed(1)}s)
+            </label>
+            <input
+              type="range"
+              min={trim.boundStartSec}
+              max={trim.boundEndSec - MIN_TRIM_CLIP_SEC}
+              step={0.1}
+              value={Math.min(trim.startSec, trim.boundEndSec - MIN_TRIM_CLIP_SEC)}
+              onChange={(e) => trim.onStartChange(Number(e.target.value))}
+              className="w-full h-1 accent-black cursor-pointer"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="block text-[10px] text-[#777169] uppercase tracking-wide">
+              End ({trim.endSec.toFixed(1)}s)
+            </label>
+            <input
+              type="range"
+              min={trim.boundStartSec + MIN_TRIM_CLIP_SEC}
+              max={trim.boundEndSec}
+              step={0.1}
+              value={Math.max(trim.endSec, trim.boundStartSec + MIN_TRIM_CLIP_SEC)}
+              onChange={(e) => trim.onEndChange(Number(e.target.value))}
+              className="w-full h-1 accent-black cursor-pointer"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Hook editor */}
       <div className="mb-4">

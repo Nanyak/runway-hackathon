@@ -194,8 +194,9 @@ export async function runPipeline(sessionId: string): Promise<void> {
 
     // Re-read session to pick up config changes written by the approve route (e.g. sheetVariantCount)
     const approvedSession = (await getSession(sessionId)) ?? session;
-
-    const approvedMoments = moments
+    // Use moments from session so Gate 1 trim / approve-route updates to startSec/endSec are honored
+    const sessionMoments = approvedSession.moments ?? moments;
+    const approvedMoments = sessionMoments
       .filter((m) => approvedIds.includes(m.id))
       .map((m) => ({ ...m, hook: hookEdits[m.id] ?? m.hook }));
 

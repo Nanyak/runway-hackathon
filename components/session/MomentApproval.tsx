@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Moment } from '@/lib/types';
 import MomentCard from '@/components/session/MomentCard';
 import { resolveToPresetValue } from '@/lib/config/style-presets';
@@ -20,6 +20,7 @@ function estimateCost(momentCount: number, variantCount: number): string {
 }
 
 const VARIANT_OPTIONS = [1, 2, 3] as const;
+const MIN_CLIP_SEC = 2;
 
 export default function MomentApproval({ moments, sessionId, onApproved }: MomentApprovalProps) {
   const [checkedIds, setCheckedIds] = useState<Set<string>>(() => {
@@ -37,6 +38,51 @@ export default function MomentApproval({ moments, sessionId, onApproved }: Momen
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [redetecting, setRedetecting] = useState(false);
   const [redetectError, setRedetectError] = useState<string | null>(null);
+
+  const momentsKey = useMemo(
+    () => moments.map((m) => `${m.id}:${m.startSec}:${m.endSec}`).join('|'),
+    [moments]
+  );
+
+  const [trimById, setTrimById] = useState<Record<string, { startSec: number; endSec: number }>>(() =>
+    Object.fromEntries(moments.map((m) => [m.id, { startSec: m.startSec, endSec: m.endSec }]))
+  );
+
+  useEffect(() => {
+    setTrimById(Object.fromEntries(moments.map((m) => [m.id, { startSec: m.startSec, endSec: m.endSec }])));
+  }, [momentsKey, moments]);
+
+  const setTrimStart = useCallback((id: string, v: number) => {
+    setTrimById((prev) => {
+      const m = moments.find((x) => x.id === id);
+      if (!m) return prev;
+      const cur = prev[id] ?? { startSec: m.startSec, endSec: m.endSec };
+      const lo = m.startSec;
+      const hi = m.endSec;
+      let start = Math.min(Math.max(v, lo), hi - MIN_CLIP_SEC);
+      let end = cur.endSec;
+      if (end - start < MIN_CLIP_SEC) {
+        end = Math.min(hi, start + MIN_CLIP_SEC);
+      }
+      return { ...prev, [id]: { startSec: start, endSec: end } };
+    });
+  }, [moments]);
+
+  const setTrimEnd = useCallback((id: string, v: number) => {
+    setTrimById((prev) => {
+      const m = moments.find((x) => x.id === id);
+      if (!m) return prev;
+      const cur = prev[id] ?? { startSec: m.startSec, endSec: m.endSec };
+      const lo = m.startSec;
+      const hi = m.endSec;
+      let end = Math.max(Math.min(v, hi), lo + MIN_CLIP_SEC);
+      let start = cur.startSec;
+      if (end - start < MIN_CLIP_SEC) {
+        start = Math.max(lo, end - MIN_CLIP_SEC);
+      }
+      return { ...prev, [id]: { startSec: start, endSec: end } };
+    });
+  }, [moments]);
 
   function toggleMoment(id: string) {
     setCheckedIds((prev) => {
@@ -64,10 +110,22 @@ export default function MomentApproval({ moments, sessionId, onApproved }: Momen
     setRedetectError(null);
 
     try {
+      const trimBounds: Record<string, { startSec: number; endSec: number }> = {};
+      for (const id of approvedIds) {
+        const t = trimById[id];
+        if (t) trimBounds[id] = { startSec: t.startSec, endSec: t.endSec };
+      }
+
       const res = await fetch(`/api/session/${sessionId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approvedIds, hookEdits, styleAnchors: styleEdits, sheetVariantCount: variantCount }),
+        body: JSON.stringify({
+          approvedIds,
+          hookEdits,
+          styleAnchors: styleEdits,
+          sheetVariantCount: variantCount,
+          trimBounds,
+        }),
       });
 
       if (!res.ok) {
@@ -118,19 +176,34 @@ export default function MomentApproval({ moments, sessionId, onApproved }: Momen
 
       {/* Moment cards */}
       <div className="space-y-4">
-        {moments.map((moment) => (
-          <MomentCard
-            key={moment.id}
-            moment={moment}
-            checked={checkedIds.has(moment.id)}
-            hookText={hookEdits[moment.id] ?? moment.hook}
-            styleText={styleEdits[moment.id] ?? moment.suggestedStyle ?? ''}
-            onToggle={() => toggleMoment(moment.id)}
-            onHookEdit={(text) => editHook(moment.id, text)}
-            onStyleEdit={(text) => editStyle(moment.id, text)}
-            audioUrl={`/api/session/${sessionId}/audio/${moment.id}`}
-          />
-        ))}
+        {moments.map((moment) => {
+          const t = trimById[moment.id] ?? { startSec: moment.startSec, endSec: moment.endSec };
+          const trimProps =
+            moment.endSec - moment.startSec >= MIN_CLIP_SEC + 0.05
+              ? {
+                  startSec: t.startSec,
+                  endSec: t.endSec,
+                  boundStartSec: moment.startSec,
+                  boundEndSec: moment.endSec,
+                  onStartChange: (sec: number) => setTrimStart(moment.id, sec),
+                  onEndChange: (sec: number) => setTrimEnd(moment.id, sec),
+                }
+              : undefined;
+          return (
+            <MomentCard
+              key={moment.id}
+              moment={moment}
+              checked={checkedIds.has(moment.id)}
+              hookText={hookEdits[moment.id] ?? moment.hook}
+              styleText={styleEdits[moment.id] ?? moment.suggestedStyle ?? ''}
+              onToggle={() => toggleMoment(moment.id)}
+              onHookEdit={(text) => editHook(moment.id, text)}
+              onStyleEdit={(text) => editStyle(moment.id, text)}
+              audioUrl={`/api/session/${sessionId}/audio/${moment.id}`}
+              trim={trimProps}
+            />
+          );
+        })}
       </div>
 
       {/* Cost estimate + CTA */}
