@@ -12,8 +12,8 @@ function getMutex(id: string): Mutex {
   return sessionMutexes.get(id)!;
 }
 
-export async function createSession(config: SessionConfig, audioPath: string): Promise<Session> {
-  const id = uuidv4();
+export async function createSession(config: SessionConfig, audioPath: string, id?: string): Promise<Session> {
+  id = id ?? uuidv4();
   const now = new Date().toISOString();
 
   const session: Session = {

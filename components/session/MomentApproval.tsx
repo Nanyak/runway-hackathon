@@ -22,9 +22,10 @@ function estimateCost(momentCount: number, variantCount: number): string {
 const VARIANT_OPTIONS = [1, 2, 3] as const;
 
 export default function MomentApproval({ moments, sessionId, onApproved }: MomentApprovalProps) {
-  const [checkedIds, setCheckedIds] = useState<Set<string>>(
-    new Set(moments.map((m) => m.id))
-  );
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(() => {
+    const top = moments.reduce((best, m) => (m.viralScore > best.viralScore ? m : best), moments[0]);
+    return new Set(top ? [top.id] : []);
+  });
   const [hookEdits, setHookEdits] = useState<Record<string, string>>(
     Object.fromEntries(moments.map((m) => [m.id, m.hook]))
   );

@@ -98,7 +98,8 @@ export async function POST(req: NextRequest): Promise<Response> {
       readable.on('error', reject);
     });
 
-    const session = await createSession(config, audioFilePath);
+    // Pass the pre-generated sessionId so the audio dir and session.json share the same UUID.
+    const session = await createSession(config, audioFilePath, sessionId);
 
     // Record in SQLite for history
     await createSessionRecord(userId, session.id, {
