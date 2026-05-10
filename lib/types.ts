@@ -28,6 +28,8 @@ export interface Session {
   storyboards?: Record<string, StoryboardPlan>;
   storyboardApprovals?: Record<string, boolean>;
   storyboardIterations?: Record<string, number>;
+  // Per-moment video generation error messages (content moderation, etc.)
+  momentVideoErrors?: Record<string, string>;
   events: PipelineEvent[];
   error?: string;
 }
@@ -56,6 +58,7 @@ export interface PipelineEvent {
     | 'storyboard_ready'          // all frames ready (after feedback loop completes)
     | 'storyboard_thinking'       // live AI reasoning message during storyboard planning/imaging
     | 'video_ready'               // moment video ready (text_to_video done)
+    | 'video_error'               // moment video generation failed (content moderation, etc.) — user can retry
     | 'render_complete'   // final.mp4 saved (same bytes as selected Runway clip + its audio)
     | 'error'
     | 'gate'

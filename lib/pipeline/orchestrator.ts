@@ -364,33 +364,49 @@ export async function runPipeline(sessionId: string): Promise<void> {
     await Promise.all(
       approvedMoments.map((moment) =>
         videoLimit(async () => {
-          if (await videoExists(sessionId, moment.id)) {
-            logger.info('Video already exists, skipping', { momentId: moment.id });
+          try {
+            if (await videoExists(sessionId, moment.id)) {
+              logger.info('Video already exists, skipping', { momentId: moment.id });
+              await appendEvent(sessionId, {
+                type: 'video_ready',
+                timestamp: new Date().toISOString(),
+                data: { momentId: moment.id, videoUrl: `/api/session/${sessionId}/video/${moment.id}` },
+              });
+              return;
+            }
+
+            // Load the latest storyboard from disk (may have been updated by refine-storyboard)
+            const storyboard = await readJsonFile<StoryboardPlan>(storyboardPath(sessionId, moment.id));
+            if (!storyboard) {
+              logger.error('No storyboard found for moment', { momentId: moment.id });
+              return;
+            }
+
+            const durationSec = moment.endSec - moment.startSec;
+            await generateVideoFromStoryboard(storyboard, moment.id, sessionId, approvedSession.config, durationSec);
+
             await appendEvent(sessionId, {
               type: 'video_ready',
               timestamp: new Date().toISOString(),
               data: { momentId: moment.id, videoUrl: `/api/session/${sessionId}/video/${moment.id}` },
             });
-            return;
+
+            logger.info('Moment video ready', { momentId: moment.id });
+          } catch (videoErr) {
+            // Per-moment failure (e.g. content moderation) — surface as a retryable event
+            // without crashing the entire pipeline so other moments can still complete.
+            const msg = videoErr instanceof Error ? videoErr.message : String(videoErr);
+            logger.error('Video generation failed for moment', { momentId: moment.id, error: msg });
+            await appendEvent(sessionId, {
+              type: 'video_error',
+              timestamp: new Date().toISOString(),
+              data: { momentId: moment.id, message: msg },
+            });
+            const current = await getSession(sessionId);
+            await updateSession(sessionId, {
+              momentVideoErrors: { ...(current?.momentVideoErrors ?? {}), [moment.id]: msg },
+            });
           }
-
-          // Load the latest storyboard from disk (may have been updated by refine-storyboard)
-          const storyboard = await readJsonFile<StoryboardPlan>(storyboardPath(sessionId, moment.id));
-          if (!storyboard) {
-            logger.error('No storyboard found for moment', { momentId: moment.id });
-            return;
-          }
-
-          const durationSec = moment.endSec - moment.startSec;
-          await generateVideoFromStoryboard(storyboard, moment.id, sessionId, approvedSession.config, durationSec);
-
-          await appendEvent(sessionId, {
-            type: 'video_ready',
-            timestamp: new Date().toISOString(),
-            data: { momentId: moment.id, videoUrl: `/api/session/${sessionId}/video/${moment.id}` },
-          });
-
-          logger.info('Moment video ready', { momentId: moment.id });
         })
       )
     );

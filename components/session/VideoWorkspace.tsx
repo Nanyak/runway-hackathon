@@ -26,15 +26,17 @@ interface VideoCardProps {
   videoReady: boolean;
   finalized: boolean;
   downloadUrl?: string;
+  videoError?: string;
 }
 
-function VideoCard({ moment, sessionId, videoReady, finalized, downloadUrl }: VideoCardProps) {
+function VideoCard({ moment, sessionId, videoReady, finalized, downloadUrl, videoError }: VideoCardProps) {
   const [revisions, setRevisions] = useState<VideoRevision[]>([]);
   const [selectedVersion, setSelectedVersion] = useState<'original' | string>('original');
   const [feedback, setFeedback] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchRevisions = useCallback(async () => {
@@ -125,6 +127,23 @@ function VideoCard({ moment, sessionId, videoReady, finalized, downloadUrl }: Vi
     }
   }
 
+  async function handleRetry() {
+    if (retrying) return;
+    setRetrying(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/session/${sessionId}/retry-video/${moment.id}`, {
+        method: 'POST',
+      });
+      const data = await res.json() as { ok?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error ?? 'Retry failed');
+      // Stay in retrying state — video_ready SSE event will eventually arrive
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Retry failed');
+      setRetrying(false);
+    }
+  }
+
   async function handleFinalize() {
     if (finalizing || finalized || currentVideoSrc === null || revisionFailed) return;
     setFinalizing(true);
@@ -164,7 +183,7 @@ function VideoCard({ moment, sessionId, videoReady, finalized, downloadUrl }: Vi
           <div className="w-full max-w-[min(100%,380px)] sm:max-w-[420px] lg:max-w-none aspect-[9/16] bg-[#111] rounded-[12px] overflow-hidden relative mx-auto lg:mx-0">
             {videoReady ? (
               revisionFailed ? (
-                <div className="w-full h-full flex items-center justify-center px-2">
+                <div className="w-full h-full flex items-center justify-center px-4">
                   <p className="text-xs text-center text-red-300">
                     {selectedRevision?.error ?? 'Revision failed. Try another prompt.'}
                   </p>
@@ -173,9 +192,7 @@ function VideoCard({ moment, sessionId, videoReady, finalized, downloadUrl }: Vi
                 <div className="w-full h-full flex items-center justify-center">
                   <div className="text-center space-y-2 px-2">
                     <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin mx-auto" />
-                    <p className="text-xs text-white/50">
-                      Runway is refining this version…
-                    </p>
+                    <p className="text-xs text-white/50">Runway is refining this version…</p>
                     <p className="text-[10px] text-white/35">Usually 1–3 min</p>
                   </div>
                 </div>
@@ -187,11 +204,38 @@ function VideoCard({ moment, sessionId, videoReady, finalized, downloadUrl }: Vi
                   className="w-full h-full object-cover"
                 />
               )
+            ) : videoError && !retrying ? (
+              /* Content moderation / generation error — user can retry */
+              <div className="w-full h-full flex items-center justify-center px-5">
+                <div className="text-center space-y-4">
+                  <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center mx-auto">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                      <path d="M9 6v4M9 12.5h.01" stroke="#f87171" strokeWidth="1.5" strokeLinecap="round" />
+                      <circle cx="9" cy="9" r="7.5" stroke="#f87171" strokeWidth="1.3" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-white/80">Video blocked</p>
+                    <p className="text-[11px] text-white/40 mt-1 leading-relaxed">
+                      {/content.moderation|blocked/i.test(videoError)
+                        ? 'Content policy blocked this generation.'
+                        : 'Generation failed.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRetry}
+                    className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-colors border border-white/20"
+                  >
+                    Retry generation
+                  </button>
+                </div>
+              </div>
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <div className="text-center space-y-2">
                   <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin mx-auto" />
-                  <p className="text-xs text-white/40">Generating…</p>
+                  <p className="text-xs text-white/40">{retrying ? 'Retrying…' : 'Generating…'}</p>
                 </div>
               </div>
             )}
@@ -410,14 +454,23 @@ function VideoCard({ moment, sessionId, videoReady, finalized, downloadUrl }: Vi
 // ── Main VideoWorkspace ────────────────────────────────────────────────────────
 
 export default function VideoWorkspace({ moments, sessionId, events }: VideoWorkspaceProps) {
-  // Track which moments have their video ready and which are finalized
+  // Track which moments have their video ready, errored, and which are finalized
   const videoReadyIds = new Set<string>();
+  const videoErrors: Record<string, string> = {};
   const finalizedIds = new Set<string>();
   const downloadUrls: Record<string, string> = {};
 
   for (const e of events) {
     if (e.type === 'video_ready' && typeof e.data.momentId === 'string') {
       videoReadyIds.add(e.data.momentId);
+      // Clear any prior error once video succeeds (e.g. after a retry)
+      delete videoErrors[e.data.momentId];
+    }
+    if (e.type === 'video_error' && typeof e.data.momentId === 'string') {
+      // Only record error if the video hasn't succeeded yet
+      if (!videoReadyIds.has(e.data.momentId)) {
+        videoErrors[e.data.momentId] = typeof e.data.message === 'string' ? e.data.message : 'Generation failed';
+      }
     }
     if (e.type === 'render_complete' && typeof e.data.momentId === 'string') {
       finalizedIds.add(e.data.momentId);
@@ -428,6 +481,7 @@ export default function VideoWorkspace({ moments, sessionId, events }: VideoWork
   }
 
   const readyCount = videoReadyIds.size;
+  const errorCount = Object.keys(videoErrors).length;
   const totalCount = moments.length;
 
   return (
@@ -436,8 +490,10 @@ export default function VideoWorkspace({ moments, sessionId, events }: VideoWork
         <div>
           <h2 className="text-xl font-medium text-black">Video Studio</h2>
           <p className="text-sm text-[#777169] mt-0.5">
-            {readyCount < totalCount
+            {readyCount < totalCount && errorCount === 0
               ? `${readyCount}/${totalCount} videos generating…`
+              : errorCount > 0
+              ? `${errorCount} video${errorCount !== 1 ? 's' : ''} blocked — retry to regenerate`
               : 'Refine with Runway, download the clip, or save as final for batch download'}
           </p>
         </div>
@@ -455,6 +511,7 @@ export default function VideoWorkspace({ moments, sessionId, events }: VideoWork
             videoReady={videoReadyIds.has(moment.id)}
             finalized={finalizedIds.has(moment.id)}
             downloadUrl={downloadUrls[moment.id]}
+            videoError={videoErrors[moment.id]}
           />
         ))}
       </div>

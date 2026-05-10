@@ -22,7 +22,8 @@ export async function POST(
     if (!session) {
       return Response.json({ error: 'Session not found' }, { status: 404 });
     }
-    if (session.status !== 'awaiting_storyboard_review') {
+    const approvableStatuses = ['awaiting_storyboard_review', 'error'];
+    if (!approvableStatuses.includes(session.status)) {
       return Response.json(
         { error: `Cannot approve storyboard in status "${session.status}"` },
         { status: 409 }

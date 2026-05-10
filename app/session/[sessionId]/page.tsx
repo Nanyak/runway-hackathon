@@ -100,6 +100,7 @@ export default function SessionPage() {
         event.type === 'error' ||
         event.type === 'moment_detected' ||
         event.type === 'video_ready' ||
+        event.type === 'video_error' ||
         event.type === 'render_complete' ||
         event.type === 'storyboard_ready'
       ) {
