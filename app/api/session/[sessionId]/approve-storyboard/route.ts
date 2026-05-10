@@ -71,6 +71,9 @@ export async function POST(
 
       if (claimedVideoGen) {
         logger.info('Approve route claimed video generation (post-restart resume)', { sessionId });
+        // Dynamic import avoids a circular dependency between this route handler and the orchestrator module.
+        // Resume is needed because if the container restarted after storyboard generation, the pipeline's
+        // waitForStoryboardApprovals loop is gone; this route must re-enter the video generation phase.
         void import('@/lib/pipeline/orchestrator')
           .then(({ resumeFromVideoGeneration }) => resumeFromVideoGeneration(sessionId))
           .catch((err: unknown) => {

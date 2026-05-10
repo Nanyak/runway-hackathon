@@ -48,7 +48,9 @@ function VideoCard({ moment, sessionId, videoReady, finalized, downloadUrl, vide
     } catch { /* silent */ }
   }, [sessionId, moment.id]);
 
-  // Poll while any revision is generating
+  // Poll while any revision is in-flight. SSE only emits video_ready for the initial Runway
+  // generation — individual revision status (pending → generating → ready/failed) is not
+  // surfaced through the SSE stream, so we must poll this endpoint directly.
   useEffect(() => {
     const hasActive = revisions.some((r) => r.status === 'pending' || r.status === 'generating');
     if (hasActive && !pollRef.current) {

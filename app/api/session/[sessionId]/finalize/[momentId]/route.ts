@@ -1,6 +1,6 @@
 import path from 'path';
 import { NextRequest } from 'next/server';
-import { getSession, appendEvent } from '@/lib/session';
+import { getSession, updateSession, appendEvent } from '@/lib/session';
 import { momentVideoPath, finalPath, ensureDir, revisionPath, ensureLocalFile, syncLocalFileToS3 } from '@/lib/utils/file-utils';
 import { loadRevisions } from '@/lib/modules/video-reviser';
 import logger from '@/lib/logger';
@@ -78,6 +78,33 @@ export async function POST(
         });
 
         logger.info('Moment finalized', { sessionId, momentId, outFinalPath });
+
+        // Check if all approved moments are now finalized; if so, transition to complete
+        const latestSession = await getSession(sessionId);
+        if (latestSession && latestSession.status === 'awaiting_feedback') {
+          const approvedIds = latestSession.approvedMomentIds ?? [];
+          if (approvedIds.length > 0) {
+            const finalizedFlags = await Promise.all(
+              approvedIds.map(async (id) => {
+                try {
+                  await fs.access(finalPath(sessionId, id));
+                  return true;
+                } catch {
+                  return false;
+                }
+              })
+            );
+            if (finalizedFlags.every(Boolean)) {
+              await updateSession(sessionId, { status: 'complete' });
+              await appendEvent(sessionId, {
+                type: 'complete',
+                timestamp: new Date().toISOString(),
+                data: { downloadUrl: `/api/download/${sessionId}/zip` },
+              });
+              logger.info('All moments finalized — session complete', { sessionId });
+            }
+          }
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.error('Finalize failed', { sessionId, momentId, error: msg });

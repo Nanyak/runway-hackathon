@@ -14,14 +14,12 @@ import SessionActions from '@/components/session/SessionActions';
 
 type StepIndex = 1 | 2 | 3 | 4;
 
-function resolveStep(status: SessionStatus, hasAnyFrame: boolean): StepIndex {
+function resolveStep(status: SessionStatus, hasMoments: boolean): StepIndex {
   if (['uploading', 'transcribing', 'detecting'].includes(status)) return 1;
+  if (status === 'error' && !hasMoments) return 1;
   if (status === 'awaiting_approval') return 2;
-  if (
-    status === 'awaiting_storyboard_review' ||
-    (hasAnyFrame && !['generating_video', 'awaiting_feedback', 'complete'].includes(status))
-  ) return 3;
-  return 4;
+  if (status === 'awaiting_storyboard_review') return 3;
+  return 4; // generating_video, awaiting_feedback, complete, error with moments
 }
 
 // ── Page ───────────────────────────────────────────────────────────────────────
@@ -140,7 +138,7 @@ export default function SessionPage() {
   ) ?? [];
 
   const hasAnyStoryboardFrame = events.some((e) => e.type === 'storyboard_frame_ready');
-  const currentStep = resolveStep(session.status, hasAnyStoryboardFrame);
+  const currentStep = resolveStep(session.status, (session.moments?.length ?? 0) > 0);
 
   const sessionFallbackLabel = session.config.showName
     ? `${session.config.showName}${session.config.speakerName ? ` · ${session.config.speakerName}` : ''}`

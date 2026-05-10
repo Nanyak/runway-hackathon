@@ -54,7 +54,7 @@ export async function GET(
           }
 
           // Slow down polling while waiting at gates — no work is happening
-          const gateStatuses: string[] = ['awaiting_approval', 'awaiting_frame_selection', 'awaiting_feedback'];
+          const gateStatuses: string[] = ['awaiting_approval', 'awaiting_storyboard_review', 'awaiting_feedback'];
           const interval = gateStatuses.includes(session.status) ? SLOW_POLL_MS : FAST_POLL_MS;
 
           if (!signal.aborted) {

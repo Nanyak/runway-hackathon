@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import DropZone from '@/components/upload/DropZone';
 import ConfigPanel from '@/components/upload/ConfigPanel';
 import { SessionConfig } from '@/lib/types';
@@ -21,6 +22,7 @@ const DEFAULT_CONFIG: SessionConfig = {
 
 export default function HomePage() {
   const router = useRouter();
+  const { status: authStatus } = useSession();
   const [config, setConfig] = useState<SessionConfig>(DEFAULT_CONFIG);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -110,43 +112,63 @@ export default function HomePage() {
           ))}
         </ol>
 
-        {/* Upload zone */}
-        <DropZone onFileSelect={handleFileSelect} />
-
-        {/* Config */}
-        <ConfigPanel config={config} onChange={setConfig} />
-
-        {/* Upload progress */}
-        {uploading && (
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-[#777169]">Uploading…</span>
-              <span className="text-black font-medium">{uploadProgress}%</span>
-            </div>
-            <div className="h-1 bg-[#e5e5e5] rounded-full overflow-hidden">
-              <div
-                className="h-full bg-black transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              />
-            </div>
+        {/* Upload zone — gated by auth */}
+        {authStatus === 'loading' ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="w-6 h-6 rounded-full border-2 border-black border-t-transparent animate-spin" />
           </div>
-        )}
+        ) : authStatus === 'unauthenticated' ? (
+          <div className="flex flex-col items-center gap-4 py-10 rounded-[16px] border border-[#e5e5e5] bg-white"
+            style={{ boxShadow: 'rgba(0,0,0,0.04) 0px 2px 4px' }}
+          >
+            <h2 className="text-lg font-semibold text-black">Sign in to get started</h2>
+            <a
+              href="/login"
+              className="px-6 py-2.5 rounded-[9999px] bg-black text-white text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              Sign in
+            </a>
+          </div>
+        ) : (
+          <>
+            <DropZone onFileSelect={handleFileSelect} />
 
-        {/* Error */}
-        {uploadError && (
-          <p className="text-sm text-red-500">{uploadError}</p>
-        )}
+            {/* Config */}
+            <ConfigPanel config={config} onChange={setConfig} />
 
-        {/* CTA */}
-        <button
-          type="button"
-          onClick={handleUpload}
-          disabled={!selectedFile || uploading}
-          className="w-full py-3.5 rounded-[9999px] bg-black text-[#fdfcfc] text-sm font-medium
-            disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
-        >
-          {uploading ? 'Uploading…' : 'Generate Viral Clips'}
-        </button>
+            {/* Upload progress */}
+            {uploading && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#777169]">Uploading…</span>
+                  <span className="text-black font-medium">{uploadProgress}%</span>
+                </div>
+                <div className="h-1 bg-[#e5e5e5] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-black transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Error */}
+            {uploadError && (
+              <p className="text-sm text-red-500">{uploadError}</p>
+            )}
+
+            {/* CTA */}
+            <button
+              type="button"
+              onClick={handleUpload}
+              disabled={!selectedFile || uploading}
+              className="w-full py-3.5 rounded-[9999px] bg-black text-[#fdfcfc] text-sm font-medium
+                disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
+            >
+              {uploading ? 'Uploading…' : 'Generate Viral Clips'}
+            </button>
+          </>
+        )}
 
         <p className="text-center text-xs text-[#a59f97]">
           Supports MP3, WAV, M4A · Up to 2 GB · Generations use{' '}

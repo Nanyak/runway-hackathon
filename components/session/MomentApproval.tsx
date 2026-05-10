@@ -35,6 +35,8 @@ export default function MomentApproval({ moments, sessionId, onApproved }: Momen
   const [variantCount, setVariantCount] = useState<1 | 2 | 3>(2);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [redetecting, setRedetecting] = useState(false);
+  const [redetectError, setRedetectError] = useState<string | null>(null);
 
   function toggleMoment(id: string) {
     setCheckedIds((prev) => {
@@ -77,6 +79,25 @@ export default function MomentApproval({ moments, sessionId, onApproved }: Momen
       const msg = err instanceof Error ? err.message : String(err);
       setSubmitError(msg);
       setSubmitting(false);
+    }
+  }
+
+  async function handleRedetect() {
+    setRedetecting(true);
+    setRedetectError(null);
+    try {
+      const res = await fetch(`/api/session/${sessionId}/redetect`, { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json() as { error?: string };
+        throw new Error(data.error ?? 'Re-analysis failed');
+      }
+      // SSE stream will emit moment_detected events; trigger a refetch now so the
+      // UI reflects the cleared moments immediately
+      onApproved();
+    } catch (err) {
+      setRedetectError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRedetecting(false);
     }
   }
 
@@ -153,6 +174,12 @@ export default function MomentApproval({ moments, sessionId, onApproved }: Momen
               Estimated cost: ~${estimateCost(selectedCount, variantCount)}
               <span className="text-[#a59f97]"> ({selectedCount} × {variantCount} image{variantCount !== 1 ? 's' : ''} + 1 video)</span>
             </p>
+            <p className="text-xs text-[#a59f97] mt-0.5">
+              Generate storyboards for{' '}
+              <span className="font-medium text-black">{selectedCount * variantCount}</span>{' '}
+              variant{selectedCount * variantCount !== 1 ? 's' : ''}{' '}
+              ({selectedCount} moment{selectedCount !== 1 ? 's' : ''} × {variantCount} sheet{variantCount !== 1 ? 's' : ''})
+            </p>
             <p className="text-xs text-[#a59f97] mt-2 leading-snug">
               You approve before Runway jobs run — no surprise charges on moments you skip.
             </p>
@@ -171,6 +198,20 @@ export default function MomentApproval({ moments, sessionId, onApproved }: Momen
             disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
         >
           {submitting ? 'Creating visual concepts…' : `Generate Concepts for ${selectedCount} Moment${selectedCount !== 1 ? 's' : ''}`}
+        </button>
+
+        {redetectError && (
+          <p className="text-sm text-red-500 mt-2">{redetectError}</p>
+        )}
+
+        <button
+          type="button"
+          onClick={handleRedetect}
+          disabled={redetecting || submitting}
+          className="w-full py-2.5 rounded-[9999px] border border-[#e5e5e5] text-sm font-medium text-[#777169]
+            disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#f5f3f1] transition-colors mt-2"
+        >
+          {redetecting ? 'Re-analyzing…' : 'Re-analyze moments'}
         </button>
       </div>
     </div>
