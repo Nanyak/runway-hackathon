@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Moment, PipelineEvent, StoryboardPlan } from '@/lib/types';
 import AudioPlayer from '@/components/ui/AudioPlayer';
 
@@ -46,6 +46,7 @@ function Lightbox({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close full storyboard preview"
             className="text-[#a59f97] hover:text-black transition-colors p-1"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -102,13 +103,27 @@ function MomentStoryboardCard({
   const [approved, setApproved] = useState(false);
   const [approving, setApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [iterations, setIterations] = useState(iterationsUsed);
   const [refinementNote, setRefinementNote] = useState<string | null>(null);
+  const handledStoryboardReadyRef = useRef<Set<string>>(new Set());
+  /** After first non-empty `events` snapshot, historical `storyboard_ready` ids are seeded so we do not replay UI side effects. */
+  const seededHistoricalReadyRef = useRef(false);
+
+  /** From session (refetched after storyboard_ready); parent passes `storyboardIterations[moment.id] ?? 0`. */
+  const iterations = iterationsUsed;
 
   const anySheetReady = readyVariants.size > 0;
 
-  // Process SSE events for this moment
+  // Process SSE events for this moment (dedupe storyboard_ready so timeouts / notes do not stack on re-renders)
   useEffect(() => {
+    if (events.length > 0 && !seededHistoricalReadyRef.current) {
+      for (const event of events) {
+        if (event.type === 'storyboard_ready' && event.data.momentId === moment.id) {
+          handledStoryboardReadyRef.current.add(event.id);
+        }
+      }
+      seededHistoricalReadyRef.current = true;
+    }
+
     for (const event of events) {
       if (event.type === 'storyboard_frame_ready' && event.data.momentId === moment.id) {
         const idx = typeof event.data.index === 'number' ? event.data.index : 0;
@@ -121,10 +136,18 @@ function MomentStoryboardCard({
         setRefineState('regenerating');
       }
       if (event.type === 'storyboard_ready' && event.data.momentId === moment.id) {
-        // Find the most recent analysis event to surface a diff note
-        const analysisEvt = [...events].reverse().find(
-          (e) => e.type === 'storyboard_analysis_complete' && e.data.momentId === moment.id
-        );
+        if (handledStoryboardReadyRef.current.has(event.id)) continue;
+        handledStoryboardReadyRef.current.add(event.id);
+        // Find the most recent analysis event before this ready (for this moment)
+        const idxReady = events.findIndex((e) => e.id === event.id);
+        let analysisEvt: PipelineEvent | undefined;
+        for (let i = idxReady - 1; i >= 0; i--) {
+          const e = events[i];
+          if (e.type === 'storyboard_analysis_complete' && e.data.momentId === moment.id) {
+            analysisEvt = e;
+            break;
+          }
+        }
         const frameCount = Array.isArray(analysisEvt?.data.framesToRegenerate)
           ? (analysisEvt.data.framesToRegenerate as number[]).length
           : 0;
@@ -136,7 +159,6 @@ function MomentStoryboardCard({
         setRegenerating(false);
         setRefineState('done');
         setFeedback('');
-        setIterations((prev) => prev + 1);
         setTimeout(() => setRefineState('idle'), 1500);
       }
     }

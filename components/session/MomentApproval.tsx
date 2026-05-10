@@ -61,6 +61,7 @@ export default function MomentApproval({ moments, sessionId, onApproved }: Momen
 
     setSubmitting(true);
     setSubmitError(null);
+    setRedetectError(null);
 
     try {
       const res = await fetch(`/api/session/${sessionId}/approve`, {
@@ -194,6 +195,12 @@ export default function MomentApproval({ moments, sessionId, onApproved }: Momen
           type="button"
           onClick={handleGenerate}
           disabled={selectedCount === 0 || submitting}
+          aria-busy={submitting}
+          aria-label={
+            submitting
+              ? 'Creating visual concepts'
+              : `Generate concepts for ${selectedCount} selected moment${selectedCount !== 1 ? 's' : ''}`
+          }
           className="w-full py-3 rounded-[9999px] bg-black text-[#fdfcfc] text-sm font-medium
             disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
         >
@@ -208,6 +215,8 @@ export default function MomentApproval({ moments, sessionId, onApproved }: Momen
           type="button"
           onClick={handleRedetect}
           disabled={redetecting || submitting}
+          aria-busy={redetecting}
+          aria-label={redetecting ? 'Re-analyzing podcast for moments' : 'Re-analyze viral moments with AI'}
           className="w-full py-2.5 rounded-[9999px] border border-[#e5e5e5] text-sm font-medium text-[#777169]
             disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#f5f3f1] transition-colors mt-2"
         >

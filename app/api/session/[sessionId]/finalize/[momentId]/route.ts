@@ -82,10 +82,15 @@ export async function POST(
         // Check if all approved moments are now finalized; if so, transition to complete
         const latestSession = await getSession(sessionId);
         if (latestSession && latestSession.status === 'awaiting_feedback') {
-          const approvedIds = latestSession.approvedMomentIds ?? [];
-          if (approvedIds.length > 0) {
+          let momentIdsToCheck = latestSession.approvedMomentIds ?? [];
+          // Legacy / edge: sessions with a single moment may omit approvedMomentIds after older flows
+          if (momentIdsToCheck.length === 0) {
+            const only = latestSession.moments?.length === 1 ? latestSession.moments[0] : undefined;
+            if (only) momentIdsToCheck = [only.id];
+          }
+          if (momentIdsToCheck.length > 0) {
             const finalizedFlags = await Promise.all(
-              approvedIds.map(async (id) => {
+              momentIdsToCheck.map(async (id) => {
                 try {
                   await fs.access(finalPath(sessionId, id));
                   return true;

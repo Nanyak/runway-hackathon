@@ -1,6 +1,9 @@
 import pLimit from 'p-limit';
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { getSessionRecordByFileId } from '@/lib/db';
 import {
   getSession,
   updateSession,
@@ -13,6 +16,9 @@ import { extractMomentAudio } from '@/lib/modules/audio-extractor';
 import { audioPath, momentDir, ensureDir } from '@/lib/utils/file-utils';
 import { Moment, Transcript, PodcastContext, SessionConfig } from '@/lib/types';
 import logger from '@/lib/logger';
+
+/** Prevents overlapping re-detect jobs for the same session (same process). */
+const redetectInFlight = new Set<string>();
 
 const RedetectBodySchema = z
   .object({
@@ -29,6 +35,12 @@ async function runRedetection(
   podcastContext: PodcastContext | undefined
 ): Promise<void> {
   try {
+    const before = await getSession(sessionId);
+    if (!before || before.status !== 'awaiting_approval') {
+      logger.warn('Re-detection skipped — session not awaiting approval', { sessionId });
+      return;
+    }
+
     const moments = await detectMoments(
       transcript,
       config,
@@ -43,6 +55,12 @@ async function runRedetection(
     );
 
     await saveCheckpoint(sessionId, 'moments', moments);
+
+    const midCheck = await getSession(sessionId);
+    if (!midCheck || midCheck.status !== 'awaiting_approval') {
+      logger.warn('Re-detection aborted — session left awaiting_approval before write', { sessionId });
+      return;
+    }
 
     await updateSession(sessionId, {
       moments,
@@ -87,6 +105,8 @@ async function runRedetection(
       timestamp: new Date().toISOString(),
       data: { message: `Re-detection failed: ${msg}` },
     }).catch(() => undefined);
+  } finally {
+    redetectInFlight.delete(sessionId);
   }
 }
 
@@ -97,6 +117,16 @@ export async function POST(
   const { sessionId } = await params;
 
   try {
+    const authSession = await getServerSession(authOptions);
+    if (!authSession?.user) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = (authSession.user as { id?: string }).id ?? '';
+    const rec = await getSessionRecordByFileId(sessionId);
+    if (!rec || rec.user_id !== userId) {
+      return Response.json({ error: 'Session not found' }, { status: 404 });
+    }
+
     const session = await getSession(sessionId);
     if (!session) {
       return Response.json({ error: 'Session not found' }, { status: 404 });
@@ -131,6 +161,11 @@ export async function POST(
       ...session.config,
       ...(body.maxMoments !== undefined ? { maxMoments: body.maxMoments } : {}),
     };
+
+    if (redetectInFlight.has(sessionId)) {
+      return Response.json({ error: 'Re-analysis is already running for this session.' }, { status: 409 });
+    }
+    redetectInFlight.add(sessionId);
 
     // Fire re-detection in background — client listens via SSE for moment_detected + gate events
     void runRedetection(sessionId, transcript, config, session.audioPath, podcastContext ?? undefined);
